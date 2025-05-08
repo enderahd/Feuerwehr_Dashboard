@@ -8,19 +8,27 @@ const pdfUrls = [
 ];
 
 const intervalTimes = [15000, 15000, 15000, 15000, 15000, 15000];
+const reloadInterval = 60000; // 1 Minute in Millisekunden
 const totalPdfs = pdfUrls.length;
 const canvases = document.querySelectorAll('.pdf-container canvas');
 let currentPages = new Array(totalPdfs).fill(1);
 let pdfDocuments = [];
 let renderTasks = new Array(totalPdfs).fill(null);
 
-pdfUrls.forEach((url, index) => {
-  pdfjsLib.getDocument(url).promise.then(function(pdfDoc) {
-    pdfDocuments[index] = pdfDoc;
-    displayPage(index, currentPages[index]);
+// Funktion zum Laden der PDFs
+function loadPdfs() {
+  pdfDocuments = []; // Leere das Array, um alte Referenzen zu entfernen
+  pdfUrls.forEach((url, index) => {
+    pdfjsLib.getDocument(url).promise.then(function (pdfDoc) {
+      pdfDocuments[index] = pdfDoc;
+      displayPage(index, currentPages[index]);
+    }).catch(error => {
+      console.error(`Fehler beim Laden der PDF ${url}:`, error);
+    });
   });
-});
+}
 
+// Funktion zum Anzeigen einer Seite
 function displayPage(pdfIndex, pageNum) {
   const canvas = canvases[pdfIndex];
   const context = canvas.getContext('2d');
@@ -30,7 +38,7 @@ function displayPage(pdfIndex, pageNum) {
     renderTasks[pdfIndex] = null;
   }
 
-  pdfDocuments[pdfIndex].getPage(pageNum).then(function(page) {
+  pdfDocuments[pdfIndex].getPage(pageNum).then(function (page) {
     const viewport = page.getViewport({ scale: 1.5 });
 
     const containerWidth = canvas.parentElement.clientWidth;
@@ -47,12 +55,15 @@ function displayPage(pdfIndex, pageNum) {
     };
 
     renderTasks[pdfIndex] = page.render(renderContext);
-    renderTasks[pdfIndex].promise.then(function() {
+    renderTasks[pdfIndex].promise.then(function () {
       renderTasks[pdfIndex] = null;
     });
+  }).catch(error => {
+    console.error(`Fehler beim Anzeigen der Seite ${pageNum} für PDF ${pdfIndex}:`, error);
   });
 }
 
+// Funktion zum Wechseln zur nächsten Seite
 function nextPage(pdfIndex) {
   if (currentPages[pdfIndex] < pdfDocuments[pdfIndex].numPages) {
     currentPages[pdfIndex]++;
@@ -62,10 +73,21 @@ function nextPage(pdfIndex) {
   displayPage(pdfIndex, currentPages[pdfIndex]);
 }
 
+// PDFs initial laden
+loadPdfs();
+
+// Seitenwechsel alle 15 Sekunden
 for (let i = 0; i < totalPdfs; i++) {
   setInterval(() => nextPage(i), intervalTimes[i]);
 }
 
+// PDFs alle 1 Minute neu laden
+setInterval(() => {
+  console.log("PDFs werden neu geladen...");
+  loadPdfs();
+}, reloadInterval);
+
+// Seiten bei Fenstergröße ändern neu rendern
 window.addEventListener('resize', () => {
   for (let i = 0; i < totalPdfs; i++) {
     displayPage(i, currentPages[i]);
