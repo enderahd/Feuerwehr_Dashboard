@@ -1,0 +1,9 @@
+{
+    "city": "Berlin",
+    "akt_temperature": "16\u00b0C",
+    "min_temperature": "15\u00b0C",
+    "max_temperature": "17\u00b0C",
+    "humidity": "38%",
+    "weather": "Klarer Himmel",
+    "icon": "01d"
+}

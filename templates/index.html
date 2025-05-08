@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #0056b3;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .grid-item {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            cursor: pointer;
+            position: relative;
+        }
+        .grid-item.selected {
+            border: 2px solid #0056b3;
+        }
+        .grid-item.occupied {
+            background-color: red;
+            cursor: not-allowed;
+        }
+        .grid-item.free {
+            background-color: green;
+        }
+        .delete-button {
+            display: none;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #ff0000;
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .grid-item.occupied .delete-button {
+            display: block;
+        }
+        .upload-section, .info-section, .auto-update-section {
+            margin-bottom: 20px;
+        }
+        input[type="file"], input[type="text"], button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #0056b3;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #004494;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+        }
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        .slider.round {
+            border-radius: 34px;
+        }
+        .slider.round:before {
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+    <h1>Backend</h1>
+    <div class="grid"></div>
+        <div class="grid-item" data-number="1">Ziel 1</div>
+        <div class="grid-item" data-number="2">Ziel 2</div>
+        <div class="grid-item" data-number="3">Ziel 3</div>
+        <div class="grid-item" data-number="4">Ziel 4</div>
+        <div class="grid-item" data-number="5">Ziel 5</div>
+        <div class="grid-item" data-number="6">Ziel 6</div>
+    </div>
+        <button id="delete-button" disabled>Löschen</button>
+        <div id="deleteResult" class="result"></div>
+    </div>
+    <div class="upload-section">
+        <input type="file" id="file" accept="application/pdf" required>
+        <button id="uploadButton" disabled>Hochladen</button>
+        <div id="uploadResult" class="result"></div>
+    </div>
+    <div class="info-section">
+        <input type="text" id="infoInput" placeholder="Info eingeben" required>
+        <button id="saveInfoButton">Update Info</button>
+        <div id="infoResult" class="result"></div>
+    </div>
+    <div class="auto-update-section">
+        <label class="switch">
+            <input type="checkbox" id="autoUpdateSwitch">
+            <span class="slider round"></span>
+        </label>
+        <div id="toggleAutoUpdateResult" class="result"></div>
+    </div>
+    <button id="manualUpdateButton">Manuelles Update</button>
+
+    <script>
+        let selectedNumber = null;
+
+        document.querySelectorAll('.grid-item').forEach(item => {
+            item.addEventListener('click', function() {
+                if (this.classList.contains('occupied')) return;
+
+                document.querySelectorAll('.grid-item').forEach(i => i.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedNumber = this.getAttribute('data-number');
+                document.getElementById('uploadButton').disabled = false;
+            });
+        });
+
+        document.getElementById('uploadButton').addEventListener('click', function() {
+            if (!selectedNumber) return;
+
+            const fileInput = document.getElementById('file');
+            if (fileInput.files.length === 0) return;
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('number', selectedNumber);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                const resultDiv = document.getElementById('uploadResult');
+                resultDiv.innerText = data.message || data.error;
+                resultDiv.className = 'result ' + (data.message ? 'success' : 'error');
+                updateGridStatus();
+            })
+            .catch(error => {
+                const resultDiv = document.getElementById('uploadResult');
+                resultDiv.innerText = 'Fehler: ' + error;
+                resultDiv.className = 'result error';
+            });
+        });
+
+        document.getElementById('delete-button').addEventListener('click', function() {
+
+            fetch('/delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ number: selectedNumber })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const resultDiv = document.getElementById('deleteResult');
+                resultDiv.innerText = data.message || data.error;
+                resultDiv.className = 'result ' + (data.message ? 'success' : 'error');
+                updateGridStatus();
+            })
+            .catch(error => {
+                const resultDiv = document.getElementById('deleteResult');
+                resultDiv.innerText = 'Fehler: ' + error;
+                resultDiv.className = 'result error';
+            });
+        });
+
+        document.getElementById('saveInfoButton').addEventListener('click', function() {
+            const info = document.getElementById('infoInput').value.trim();
+            if (!info) return;
+
+            fetch('/update_infos', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ info })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const resultDiv = document.getElementById('infoResult');
+                resultDiv.innerText = data.message || data.error;
+                resultDiv.className = 'result ' + (data.message ? 'success' : 'error');
+            })
+            .catch(error => {
+                const resultDiv = document.getElementById('infoResult');
+                resultDiv.innerText = 'Fehler: ' + error;
+                resultDiv.className = 'result error';
+            });
+        });
+
+        document.getElementById('autoUpdateSwitch').addEventListener('change', function(event) {
+            const autoUpdateStatus = event.target.checked;
+
+            fetch('/toggle_auto_update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ auto_update: autoUpdateStatus })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const resultDiv = document.getElementById('toggleAutoUpdateResult');
+                resultDiv.innerText = data.message || data.error;
+                resultDiv.className = 'result ' + (data.message ? 'success' : 'error');
+            })
+            .catch(error => {
+                const resultDiv = document.getElementById('toggleAutoUpdateResult');
+                resultDiv.innerText = 'Fehler: ' + error;
+                resultDiv.className = 'result error';
+            });
+        });
+
+        document.getElementById('manualUpdateButton').addEventListener('click', updateGridStatus);
+        function updateGridStatus() {
+            fetch('/wetter_update', {
+                method: 'GET'
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.querySelectorAll('.grid-item').forEach(item => {
+                    const number = item.getAttribute('data-number');
+                    item.classList.remove('occupied', 'free');
+                    if (data.occupied.includes(number)) {
+                        item.classList.add('occupied');
+                    } else {
+                        item.classList.add('free');
+                    }
+                });
+            })
+            .catch(error => {
+                console.error('Fehler beim Laden der belegten PDF-Felder:', error);
+            });
+        }
+
+        // Load auto-update status on page load
+        window.addEventListener('load', function() {
+            fetch('/get_auto_update_status', {
+                method: 'GET'
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('autoUpdateSwitch').checked = data.auto_update;
+            })
+            .catch(error => {
+                console.error('Fehler beim Laden des Auto-Update-Status:', error);
+            });
+
+            updateGridStatus();
+        });
+    </script>
+</body>
+</html>

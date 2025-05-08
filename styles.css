@@ -1,0 +1,142 @@
+/* Grundlegende Stile */
+body {
+    font-family: Arial, sans-serif; /* Setzt die Schriftart auf Arial oder eine serifenlose Alternative */
+    margin: 0; /* Entfernt den Standardabstand um den Body */
+    padding: 0; /* Entfernt die Standardauffüllung um den Body */
+    box-sizing: border-box; /* Ändert das Box-Modell, sodass Padding und Border in der Gesamtbreite und -höhe enthalten sind */
+    background-color: #666666; /* Setzt die Hintergrundfarbe */
+    height: 100%; /* Setzt die Höhe des Body auf 100% */
+    width: 100%; /* Setzt die Breite des Body auf 100% */
+}
+  
+/* Layout für das Dashboard */
+.parent {
+    display: grid; /* Verwendet ein Grid-Layout */
+    grid-template-columns: repeat(3, 1fr) 0.6fr; /* Erstellt vier Spalten, wobei die letzte Spalte 40% schmaler ist */
+    grid-template-rows: repeat(2, 1fr); /* Erstellt zwei gleich hohe Reihen */
+    grid-gap: 0px; /* Entfernt den Abstand zwischen den Grid-Elementen */
+    height: 100%; /* Setzt die Höhe des Grids auf 100% */
+    width: 100%; /* Setzt die Breite des Grids auf 100% */
+    padding: 20px; /* Fügt 20px Auffüllung um das Grid hinzu */
+}
+  
+/* Linker Bereich: Informationstafel */
+.pdf-container {
+    padding: 0; /* Entfernt die Auffüllung innerhalb des Containers */
+    overflow: hidden; /* Versteckt den Überlaufenden Inhalt */
+    height: 1284px; /* Setzt die Höhe des Containers auf das Doppelte der Standardhöhe einer A4-Seite in Pixel */
+    width: 890px; /* Setzt die Breite des Containers auf das Doppelte der Standardbreite einer A4-Seite in Pixel */
+    margin: 20px auto; /* Zentriert den Container vertikal mit 20px Abstand oben und unten */
+    border-radius: 30px; /* Rundet die Ecken des Containers mit einem Radius von 30px */
+    background-color: #999999; /* Setzt die Hintergrundfarbe */
+    display: flex; /* Verwendet ein Flexbox-Layout */
+}
+  
+/* Rechter Bereich: Wetter und Logo */
+
+.div1 {
+    grid-area: 1 / 4 / 3 / 5; /* Positioniert das Element im Grid von Spalte 4 bis 5 und von Reihe 1 bis 3 */
+    background-color: #999999; /* Setzt die Hintergrundfarbe auf Himmelblau */
+    padding: 40px; /* Erhöht den Abstand innerhalb des Containers */
+    border-radius: 5px; /* Rundet die Ecken des Containers mit einem Radius von 5px */
+    display: flex; /* Verwendet ein Flexbox-Layout */
+    flex-direction: column; /* Ordnet die Flex-Elemente vertikal an */
+    align-items: center; /* Zentriert die Flex-Elemente horizontal */
+    justify-content: center; /* Zentriert die Flex-Elemente vertikal */
+    font-size: 2em; /* Vergrößert die Schriftgröße */
+}
+.Uhrzeit {
+    font-size: 2em; /* Vergrößert die Schriftgröße */
+    margin-bottom: 20px; /* Fügt Abstand unter der Uhrzeit hinzu */
+    text-align: center; /* Zentriert den Text innerhalb des Elements */
+}
+
+.weather-top {
+    text-align: center; /* Zentriert den Text innerhalb des Elements */
+    margin-bottom: 10px; /* Fügt Abstand unter dem Wetter-Top-Bereich hinzu */
+}
+
+.weather-top h1 {
+    margin: 0; /* Entfernt den Standardabstand um die Überschrift */
+    font-size: 2em; /* Vergrößert die Schriftgröße der Überschrift */
+}
+
+.weather-top p {
+    margin: 10px 0; /* Fügt Abstand oben und unten um den Absatz hinzu */
+}
+
+.weather-icon {
+    width: 1%; /* Setzt die Breite des Icons auf 400px */
+    height: auto; /* Setzt die Höhe des Icons auf 400px */
+    margin: 40px 0; /* Erhöht den Abstand oben und unten um das Icon */
+}
+
+.weather-details {
+    display: flex; /* Verwendet ein Flexbox-Layout */
+    justify-content: space-between; /* Verteilt die Elemente gleichmäßig */
+    width: 100%; /* Setzt die Breite auf 100% */
+}
+
+.weather-forecast {
+    text-align: center; /* Zentriert den Text innerhalb des Elements */
+    margin-top: 20px; /* Fügt Abstand oben um den Wettervorhersage-Bereich hinzu */
+}
+
+.weather-forecast h2 {
+    margin: 90px; /* Entfernt den Standardabstand um die Überschrift */
+    font-size: 2em; /* Vergrößert die Schriftgröße der Überschrift */
+}
+
+.forecast-day {
+    display: flex; /* Verwendet ein Flexbox-Layout */
+    justify-content: space-between; /* Verteilt die Elemente gleichmäßig */
+    align-items: center; /* Zentriert die Elemente vertikal */
+    margin: 10px 0; /* Fügt Abstand oben und unten um den Vorhersage-Tag-Bereich hinzu */
+}
+
+.forecast-day img {
+    width: 100px; /* Setzt die Breite des Icons auf 50px */
+    height: 100px; /* Setzt die Höhe des Icons auf 50px */
+}
+
+.logo {
+    text-align: center; /* Zentriert den Text innerhalb des Elements */
+    margin-top: auto; /* Schiebt das Logo an den unteren Rand */
+    width: 100%; /* Setzt die Breite des Logos auf 100% */
+}
+
+.logo img {
+    max-width: 400px; /* Setzt die maximale Breite des Bildes auf 400px */
+    height: auto; /* Passt die Höhe des Bildes automatisch an, um das Seitenverhältnis beizubehalten */
+}
+
+.logo p {
+    margin-top: 10px; /* Fügt 10px Abstand oben um den Absatz hinzu */
+}
+
+.marquee {
+    width: 100%;
+    background-color: #333;
+    color: #fff;
+    overflow: hidden;
+    white-space: nowrap;
+    box-sizing: border-box;
+    padding: 10px 0;
+    position: relative;
+    font-size: 3em; /* Vergrößert die Schriftgröße */
+}
+
+.marquee p {
+  display: inline-block;
+  padding-left: 100%;
+  animation: marquee 15s linear infinite;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}

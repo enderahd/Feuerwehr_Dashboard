@@ -1,0 +1,20 @@
+{
+    "Klarer Himmel": "http://openweathermap.org/img/wn/01d@4x.png",
+    "Ein paar Wolken": "http://openweathermap.org/img/wn/02d@4x.png",
+    "\u00dcberwiegend bew\u00f6lkt": "http://openweathermap.org/img/wn/03d@4x.png",
+    "Bew\u00f6lkt": "http://openweathermap.org/img/wn/04d@4x.png",
+    "Nieselregen": "http://openweathermap.org/img/wn/09d@4x.png",
+    "Regen": "http://openweathermap.org/img/wn/10d@4x.png",
+    "Gewitter": "http://openweathermap.org/img/wn/11d@4x.png",
+    "Schnee": "http://openweathermap.org/img/wn/13d@4x.png",
+    "Nebel": "http://openweathermap.org/img/wn/50d@4x.png",
+    "Klarer Himmel (Nacht)": "http://openweathermap.org/img/wn/01n@4x.png",
+    "Ein paar Wolken (Nacht)": "http://openweathermap.org/img/wn/02n@4x.png",
+    "\u00dcberwiegend bew\u00f6lkt (Nacht)": "http://openweathermap.org/img/wn/03n@4x.png",
+    "Bew\u00f6lkt (Nacht)": "http://openweathermap.org/img/wn/04n@4x.png",
+    "Nieselregen (Nacht)": "http://openweathermap.org/img/wn/09n@4x.png",
+    "Regen (Nacht)": "http://openweathermap.org/img/wn/10n@4x.png",
+    "Gewitter (Nacht)": "http://openweathermap.org/img/wn/11n@4x.png",
+    "Schnee (Nacht)": "http://openweathermap.org/img/wn/13n@4x.png",
+    "Nebel (Nacht)": "http://openweathermap.org/img/wn/50n@4x.png"
+}

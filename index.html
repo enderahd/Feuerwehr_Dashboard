@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Informationstafel</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="parent">
+    <!-- Linker Bereich: Informationstafel -->
+    <div class="pdf-container" style="grid-area: 1 / 1 / 2 / 2;">
+      <canvas id="pdf-viewer1"></canvas>
+    </div>
+    <div class="pdf-container" style="grid-area: 1 / 2 / 2 / 3;">
+      <canvas id="pdf-viewer2"></canvas>
+    </div>
+    <div class="pdf-container" style="grid-area: 1 / 3 / 2 / 4;">
+      <canvas id="pdf-viewer3"></canvas>
+    </div>
+    <div class="pdf-container" style="grid-area: 2 / 1 / 3 / 2;">
+      <canvas id="pdf-viewer4"></canvas>
+    </div>
+    <div class="pdf-container" style="grid-area: 2 / 2 / 3 / 3;">
+      <canvas id="pdf-viewer5"></canvas>
+    </div>
+    <div class="pdf-container" style="grid-area: 2 / 3 / 3 / 4;">
+      <canvas id="pdf-viewer6"></canvas>
+    </div>
+
+    <!-- Rechter Bereich: Wetter und Logo -->
+    <div class="div1">
+      <img src="images\Logo_FF_Glienicke.jpg" alt="Logo" class="logo">
+        <div class="Uhrzeit">
+          <h1 id="time">00:00</h1>
+          <h2 id="date">01.01.2023</h2>
+          <script>
+            function updateTime() {
+              const now = new Date();
+              document.getElementById('time').textContent = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+              document.getElementById('date').textContent = now.toLocaleDateString('de-DE');
+            }
+            setInterval(updateTime, 1000);
+            updateTime();
+          </script>
+        </div>
+      <div class="weather-widget">
+        <div class="weather-top">
+          <h1>Aktuelles Wetter</h1>
+          <img id="weather-icon" alt="Wetter Icon" />
+          <p id="weather">Wird geladen...</p>
+          <div class="weather-details">
+            <p id="min-temp">Min: Wird geladen...</p>
+            <p id="max-temp">Max: Wird geladen...</p>
+          </div>
+        </div>
+        <div class="weather-forecast" id="weather-forecast">
+          <h2>3-Tage-Vorhersage</h2>
+          <div id="forecast-container"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="marquee" id="marquee1">
+    <p>Dies ist ein Beispieltext für den Lauftext. Hier können wichtige Informationen angezeigt werden.</p>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
