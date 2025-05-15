@@ -17,7 +17,9 @@ from wtforms.validators import DataRequired
 load_dotenv(dotenv_path=".env")  # Umgebungsvariablen laden, falls benötigt
 
 app = Flask(__name__, template_folder='templates')
-app.secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key')  # Geheimschlüssel für Sitzungen
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key')
+TARGET_DIR = os.getenv('zielverzeichnis')
+  # Geheimschlüssel für Sitzungen
 
 csrf = CSRFProtect(app)
 
@@ -26,16 +28,16 @@ limiter.init_app(app)
 
 # Zielverzeichnisse basierend auf der Nummer
 TARGET_DIRS = {
-    1: 'pdfs',
-    2: 'pdfs',
-    3: 'pdfs',
-    4: 'pdfs',
-    5: 'pdfs',
-    6: 'pdfs'
+    1: f'{TARGET_DIR}/pdfs',
+    2: f'{TARGET_DIR}/pdfs',
+    3: f'{TARGET_DIR}/pdfs',
+    4: f'{TARGET_DIR}/pdfs',
+    5: f'{TARGET_DIR}/pdfs',
+    6: f'{TARGET_DIR}/pdfs'
 }
 
 # Sicherstellen, dass das Zielverzeichnis existiert
-os.makedirs('pdfs', exist_ok=True)
+os.makedirs(f'{TARGET_DIR}/pdfs', exist_ok=True)
 
 # Passwort für den Zugriff
 PASSWORD = os.getenv('PASSWORD', 'default_password')  # Passwort aus Umgebungsvariablen oder Standardwert
@@ -147,7 +149,7 @@ def update_infos():
     print(infos)
     
     try:
-        with open('output/infos.json', 'w', encoding='utf-8') as f:
+        with open(f'{TARGET_DIR}/output/infos.json', 'w', encoding='utf-8') as f:
             json.dump({'infos': infos}, f, ensure_ascii=False, indent=4)
         return jsonify({'message': 'Infos updated successfully'}), 200
     except Exception as e:
@@ -168,7 +170,7 @@ def toggle_auto_update():
         return jsonify({'error': 'auto_update should be a boolean'}), 400
 
     try:
-        with open('output/auto_update_status.json', 'w', encoding='utf-8') as f:
+        with open(f'{TARGET_DIR}/output/auto_update_status.json', 'w', encoding='utf-8') as f:
             json.dump({'auto_update': auto_update}, f, ensure_ascii=False, indent=4)
         return jsonify({'message': 'Auto-update status toggled successfully'}), 200
     except Exception as e:
