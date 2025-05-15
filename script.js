@@ -151,8 +151,10 @@ function loadMarqueeData() {
     .catch(error => console.error('Fehler beim Laden der Marquee-Daten:', error));
 }
 
+
 window.addEventListener('load', () => {
   loadWeatherData();
   updateWeatherData();
   loadMarqueeData();
+  setInterval(loadMarqueeData, 60000); // Aktualisiert die Marquee-Daten jede Minute
 });
