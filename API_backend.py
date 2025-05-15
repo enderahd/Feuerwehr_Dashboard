@@ -5,11 +5,14 @@ import logging
 from dotenv import load_dotenv
 from logging.handlers import RotatingFileHandler
 from werkzeug.utils import secure_filename
-import magic  # pip install python-magic
 from wetterdaten import main, auto_update_wetterdaten
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_wtf import FlaskForm
+from flask_wtf.file import FileField, FileAllowed
+from wtforms import PasswordField, SubmitField
+from wtforms.validators import DataRequired
 
 load_dotenv(dotenv_path=".env")  # Umgebungsvariablen laden, falls benötigt
 
@@ -17,7 +20,9 @@ app = Flask(__name__, template_folder='templates')
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key')  # Geheimschlüssel für Sitzungen
 
 csrf = CSRFProtect(app)
-limiter = Limiter(app, key_func=get_remote_address)
+
+limiter = Limiter(key_func=get_remote_address)
+limiter.init_app(app)
 
 # Zielverzeichnisse basierend auf der Nummer
 TARGET_DIRS = {
@@ -36,35 +41,45 @@ os.makedirs('pdfs', exist_ok=True)
 PASSWORD = os.getenv('PASSWORD', 'default_password')  # Passwort aus Umgebungsvariablen oder Standardwert
 # Auto-Update-Status aus Umgebungsvariablen laden
 
+class LoginForm(FlaskForm):
+    password = PasswordField('Passwort', validators=[DataRequired()])
+    submit = SubmitField('Login')
+
+class UploadForm(FlaskForm):
+    file = FileField('PDF auswählen', validators=[FileAllowed(['pdf'], 'Nur PDF erlaubt!')])
+    submit = SubmitField('Hochladen')
+
 @app.route("/", methods=['GET', 'POST'])
 @limiter.limit("5 per minute")
 def login():
+    form = LoginForm()
     user_ip = request.remote_addr
     app.logger.info(f"Login von IP-Adresse: {user_ip}")
     print(f"Login von IP-Adresse: {user_ip}")
-    if request.method == 'POST':
-        entered_password = request.form.get('password')
+    if form.validate_on_submit():
+        entered_password = form.password.data
         if entered_password == PASSWORD:
             session['authenticated'] = True
             app.logger.info("Erfolgreicher Login.")
             return redirect(url_for('dashboard'))
         else:
             app.logger.warning("Fehlgeschlagener Login-Versuch.")
-            return render_template("login.html", error="Falsches Passwort!")
-    return render_template("login.html")
+            return render_template("login.html", form=form, error="Falsches Passwort!")
+    return render_template("login.html", form=form)
 
 @app.route("/dashboard")
 def dashboard():
     if not session.get('authenticated'):
         return redirect(url_for('login'))
-    return render_template("index.html")
+    form = UploadForm()
+    return render_template("index.html", form=form)
 
 @app.route('/logout')
 def logout():
     session.pop('authenticated', None)
     return redirect(url_for('login'))
 
-@app.route('/upload', methods=['POST'])
+@app.route('/upload', methods=['POST', 'GET'])
 def upload_file():
     if 'file' not in request.files or 'number' not in request.form:
         app.logger.error("Fehler: Keine Datei oder Nummer angegeben.")
@@ -172,6 +187,8 @@ def pdf_belegt():
 
 
 if __name__ == '__main__':
+    if os.path.exists('app.log'):  # Log-Datei erstellen, falls nicht vorhanden
+        os.remove('app.log')  # Vorherige Log-Datei löschen
     # Logging konfigurieren
     handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=1)
     handler.setLevel(logging.INFO)  # INFO und höher loggen

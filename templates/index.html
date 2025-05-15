@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Backend</title>
     <style>
         body {
@@ -146,8 +147,12 @@
         <div id="deleteResult" class="result"></div>
     </div>
     <div class="upload-section">
-        <input type="file" id="file" accept="application/pdf" required>
-        <button id="uploadButton" disabled>Hochladen</button>
+        <form id="uploadForm" method="POST" action="/upload" enctype="multipart/form-data" onsubmit="return false;">
+            {{ form.hidden_tag() }}
+            {{ form.file() }}
+            <!-- Die Nummer wird automatisch gesetzt, kein Eingabefeld mehr -->
+            <button type="button" id="uploadButton" disabled>Hochladen</button>
+        </form>
         <div id="uploadResult" class="result"></div>
     </div>
     <div class="info-section">
@@ -184,9 +189,11 @@
             const fileInput = document.getElementById('file');
             if (fileInput.files.length === 0) return;
 
+            const csrfToken = document.querySelector('input[name="csrf_token"]').value;
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
             formData.append('number', selectedNumber);
+            formData.append('csrf_token', csrfToken);
 
             fetch('/upload', {
                 method: 'POST',
@@ -233,10 +240,13 @@
             const info = document.getElementById('infoInput').value.trim();
             if (!info) return;
 
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
             fetch('/update_infos', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
                 },
                 body: JSON.stringify({ info })
             })

@@ -52,9 +52,9 @@
     <div class="login-container">
         <h1>Login</h1>
         <form method="POST">
-            {{ csrf_token() }}
-            <input type="password" name="password" placeholder="Passwort eingeben" required>
-            <button type="submit">Login</button>
+            {{ form.hidden_tag() }}
+            {{ form.password(size=32, placeholder="Passwort eingeben") }}
+            {{ form.submit() }}
         </form>
         {% if error %}
         <p class="error">{{ error }}</p>
