@@ -82,17 +82,9 @@ def upload_file():
         return jsonify({'error': 'No filename provided'}), 400
 
     filename = secure_filename(file.filename)
-    if not filename.endswith('.pdf'):
+    if not filename.lower().endswith('.pdf'):
         app.logger.error("Ungültiger Dateityp. Nur PDFs sind erlaubt.")
         return jsonify({'error': 'Invalid file type, only PDFs are allowed'}), 400
-
-    # Datei-Inhalt prüfen
-    file.seek(0)
-    mime = magic.from_buffer(file.read(2048), mime=True)
-    file.seek(0)
-    if mime != 'application/pdf':
-        app.logger.error("Datei ist kein gültiges PDF.")
-        return jsonify({'error': 'File is not a valid PDF'}), 400
 
     target_dir = TARGET_DIRS[number]
     file_path = os.path.join(target_dir, f'{number}.pdf')
