@@ -4,12 +4,20 @@ import json
 import logging
 from dotenv import load_dotenv
 from logging.handlers import RotatingFileHandler
+from werkzeug.utils import secure_filename
+import magic  # pip install python-magic
 from wetterdaten import main, auto_update_wetterdaten
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 load_dotenv(dotenv_path=".env")  # Umgebungsvariablen laden, falls benötigt
 
 app = Flask(__name__, template_folder='templates')
-app.secret_key = 'your_secret_key'  # Geheimschlüssel für Sitzungen
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key')  # Geheimschlüssel für Sitzungen
+
+csrf = CSRFProtect(app)
+limiter = Limiter(app, key_func=get_remote_address)
 
 # Zielverzeichnisse basierend auf der Nummer
 TARGET_DIRS = {
@@ -29,6 +37,7 @@ PASSWORD = os.getenv('PASSWORD', 'default_password')  # Passwort aus Umgebungsva
 # Auto-Update-Status aus Umgebungsvariablen laden
 
 @app.route("/", methods=['GET', 'POST'])
+@limiter.limit("5 per minute")
 def login():
     user_ip = request.remote_addr
     app.logger.info(f"Login von IP-Adresse: {user_ip}")
@@ -68,16 +77,29 @@ def upload_file():
         app.logger.error(f"Ungültige Nummer angegeben: {number}")
         return jsonify({'error': 'Invalid number provided'}), 400
 
-    if file.filename == '' or not file.filename.endswith('.pdf'):
+    if file.filename == '':
+        app.logger.error("Kein Dateiname angegeben.")
+        return jsonify({'error': 'No filename provided'}), 400
+
+    filename = secure_filename(file.filename)
+    if not filename.endswith('.pdf'):
         app.logger.error("Ungültiger Dateityp. Nur PDFs sind erlaubt.")
         return jsonify({'error': 'Invalid file type, only PDFs are allowed'}), 400
+
+    # Datei-Inhalt prüfen
+    file.seek(0)
+    mime = magic.from_buffer(file.read(2048), mime=True)
+    file.seek(0)
+    if mime != 'application/pdf':
+        app.logger.error("Datei ist kein gültiges PDF.")
+        return jsonify({'error': 'File is not a valid PDF'}), 400
 
     target_dir = TARGET_DIRS[number]
     file_path = os.path.join(target_dir, f'{number}.pdf')
 
     try:
         file.save(file_path)
-        app.logger.info(f"Datei erfolgreich hochgeladen: {file.filename} in Slot {number}.")
+        app.logger.info(f"Datei erfolgreich hochgeladen: {filename} in Slot {number}.")
         return jsonify({'message': 'File uploaded successfully'}), 200
     except Exception as e:
         app.logger.error(f"Fehler beim Hochladen der Datei: {str(e)}")

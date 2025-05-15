@@ -146,7 +146,7 @@ function loadMarqueeData() {
       const marquee1 = document.getElementById('marquee1').querySelector('p');
 
       // Beispiel: Zeige die ersten beiden Infos aus der JSON-Datei an
-      marquee1.innerText = data.infos;
+      marquee1.textContent = data.infos;
     })
     .catch(error => console.error('Fehler beim Laden der Marquee-Daten:', error));
 }

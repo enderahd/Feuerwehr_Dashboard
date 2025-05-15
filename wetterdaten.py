@@ -117,7 +117,9 @@ def auto_update_wetterdaten():
 
 
 def main():
-    api_key = '252bbe1fdd147352436a2c4b37c3971b'
+    api_key = os.getenv('OPENWEATHER_API_KEY')
+    if not api_key:
+        raise Exception("API-Key nicht gesetzt!")
     city = 'Berlin'
     output_folder = 'output'  # Ordner, in dem die Dateien gespeichert werden sollen
     source_folder = 'Datenback_images'  # Ordner, in dem die Originalbilder gespeichert sind
