@@ -2,6 +2,9 @@ from flask import Flask, request, jsonify, render_template, redirect, url_for, s
 import os
 import json
 import logging
+import datetime
+import requests
+import subprocess
 from dotenv import load_dotenv
 from logging.handlers import RotatingFileHandler
 from werkzeug.utils import secure_filename
@@ -22,7 +25,7 @@ TARGET_DIR = os.getenv('zielverzeichnis')
   # Geheimschlüssel für Sitzungen
 
 csrf = CSRFProtect(app)
-
+send = requests
 limiter = Limiter(key_func=get_remote_address)
 limiter.init_app(app)
 
@@ -186,31 +189,54 @@ def pdf_belegt():
     print(pdf_files)
 
     return jsonify({'pdf_files': pdf_files}), 200
+@app.route('/error', methods=['GET'])
+def log_error():
+    url = "http://100.104.101.101:5000/error"
+    headers = {
+        "Content-Type": "application/json",
+        "x-api-key": "isudhfasbdfjbflk_sdfhcuadgasfi_hisfduihiasd_nhiasdisad_icfd"
+    }
+    data = {"error": "Das ist ein Testfehler"}
 
+    response = requests.post(url, json=data, headers=headers)
+    print(response.json())
+    return jsonify({'message': 'Error logged successfully'}), 200
 
 if __name__ == '__main__':
     if os.path.exists('app.log'):  # Log-Datei erstellen, falls nicht vorhanden
         os.remove('app.log')  # Vorherige Log-Datei löschen
     # Logging konfigurieren
-    handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=1)
-    handler.setLevel(logging.INFO)  # INFO und höher loggen
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    app.logger.addHandler(handler)  # RotatingFileHandler
+    try:
+        handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=1)
+        handler.setLevel(logging.INFO)  # INFO und höher loggen
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        app.logger.addHandler(handler)  # RotatingFileHandler
 
-    # Logs auch in der Konsole ausgeben
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-    app.logger.addHandler(console_handler)  # StreamHandler
+        # Logs auch in der Konsole ausgeben
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(formatter)
+        app.logger.addHandler(console_handler)  # StreamHandler
 
-    # werkzeug-Logger konfigurieren
-    werkzeug_logger = logging.getLogger('werkzeug')
-    werkzeug_logger.setLevel(logging.INFO)
-    werkzeug_logger.addHandler(handler)
+        # werkzeug-Logger konfigurieren
+        werkzeug_logger = logging.getLogger('werkzeug')
+        werkzeug_logger.setLevel(logging.INFO)
+        werkzeug_logger.addHandler(handler)
 
-    # Test-Log
-    app.logger.info("Test-Log: Die Anwendung wurde gestartet.")
-    print("Logging wurde konfiguriert.")
+        # Test-Log
+        app.logger.info("Test-Log: Die Anwendung wurde gestartet.")
+        print("Logging wurde konfiguriert.")
 
-    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+        app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+    except Exception as e:
+        print(f"Fehler beim Starten der Anwendung: {str(e)}")
+        app.logger.error(f"Fehler beim Starten der Anwendung: {str(e)}")
+        error = f"Fehler {str(e)} um {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        requests.post("http://100.104.101.101:6000/error", json={"error": str(e)})  # Beispiel-URL, an die der Fehler gesendet werden soll
+        print(f"Fehler wurde an die URL gesendet: {error}")
+        app.logger.error(f"Fehler wurde an die URL gesendet: {error}")
+        print("Server wird neu gestartet...")
+        app.logger.info(f"Server wird neu gestartet{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        exit(1)
+        subprocess.run(["sudo reboot"], shell=True)  

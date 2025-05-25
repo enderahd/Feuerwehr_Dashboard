@@ -145,7 +145,45 @@
     </div>
         <button id="delete-button" disabled>Löschen</button>
         <div id="deleteResult" class="result"></div>
-    </div>
+    <script>
+        // Enable/disable delete button based on selection and occupation
+        document.querySelectorAll('.grid-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const deleteBtn = document.getElementById('delete-button');
+                if (this.classList.contains('occupied')) {
+                    deleteBtn.disabled = false;
+                } else {
+                    deleteBtn.disabled = true;
+                }
+            });
+        });
+
+        document.getElementById('delete-button').addEventListener('click', function() {
+            if (!selectedNumber) return;
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            const formData = new FormData();
+            formData.append('number', selectedNumber);
+            formData.append('csrf_token', csrfToken);
+
+            fetch('/delete', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                const resultDiv = document.getElementById('deleteResult');
+                resultDiv.innerText = data.message || data.error;
+                resultDiv.className = 'result ' + (data.message ? 'success' : 'error');
+                updateGridStatus();
+            })
+            .catch(error => {
+                const resultDiv = document.getElementById('deleteResult');
+                resultDiv.innerText = 'Fehler: ' + error;
+                resultDiv.className = 'result error';
+            });
+        });
+    </script>
     <div class="upload-section">
         <form id="uploadForm" method="POST" action="/upload" enctype="multipart/form-data" onsubmit="return false;">
             {{ form.hidden_tag() }}
