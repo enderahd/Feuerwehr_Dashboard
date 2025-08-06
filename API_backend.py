@@ -203,31 +203,32 @@ def log_error():
     return jsonify({'message': 'Error logged successfully'}), 200
 
 if __name__ == '__main__':
-    if os.path.exists('app.log'):  # Log-Datei erstellen, falls nicht vorhanden
-        os.remove('app.log')  # Vorherige Log-Datei löschen
-    # Logging konfigurieren
+    # Logging-Konfiguration (wird immer ausgeführt, egal ob direkt oder via Gunicorn)
+    if os.path.exists('app.log'):
+        os.remove('app.log')
     try:
         handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=1)
-        handler.setLevel(logging.INFO)  # INFO und höher loggen
+        handler.setLevel(logging.INFO)
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
-        app.logger.addHandler(handler)  # RotatingFileHandler
+        app.logger.addHandler(handler)
 
-        # Logs auch in der Konsole ausgeben
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(formatter)
-        app.logger.addHandler(console_handler)  # StreamHandler
+        app.logger.addHandler(console_handler)
 
-        # werkzeug-Logger konfigurieren
         werkzeug_logger = logging.getLogger('werkzeug')
         werkzeug_logger.setLevel(logging.INFO)
         werkzeug_logger.addHandler(handler)
 
-        # Test-Log
-        app.logger.info("Test-Log: Die Anwendung wurde gestartet.")
-        print("Logging wurde konfiguriert.")
+        app.logger.info("Test-Log: Die Anwendung wurde (Gunicorn-kompatibel) geladen.")
+    except Exception as e:
+        print(f"Fehler beim Logging-Setup: {str(e)}")
+        app.logger.error(f"Fehler beim Logging-Setup: {str(e)}")
 
+    # Anwendung starten
+    try:
         app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
     except Exception as e:
         print(f"Fehler beim Starten der Anwendung: {str(e)}")
@@ -239,4 +240,4 @@ if __name__ == '__main__':
         print("Server wird neu gestartet...")
         app.logger.info(f"Server wird neu gestartet{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         exit(1)
-        subprocess.run(["sudo reboot"], shell=True)  
+        subprocess.run(["sudo reboot"], shell=True)
