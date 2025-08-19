@@ -60,23 +60,25 @@ else:
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key_for_development_only')
 TARGET_DIR = os.getenv('zielverzeichnis', '/opt/feuerwehr_dashboard')
 
-# CSRF Schutz - nur in Produktion aktivieren
-csrf_enabled = os.getenv('CSRF_ENABLED', 'False').lower() == 'true' and flask_env == 'production'
+# CSRF Schutz - DEAKTIVIERT für bessere Kompatibilität
+csrf_enabled = False  # Temporär deaktiviert
 csrf = None
 
 # CSRF-Token für Templates verfügbar machen (immer)
 @app.context_processor
 def inject_csrf_token():
-    if csrf_enabled and csrf:
-        from flask_wtf.csrf import generate_csrf
-        return dict(csrf_token=lambda: generate_csrf())
-    else:
-        return dict(csrf_token=lambda: None)
+    return dict(csrf_token=lambda: None)  # Immer None für Kompatibilität
 
 if csrf_enabled:
     try:
         csrf = CSRFProtect(app)
         app.logger.info("CSRF Protection aktiviert")
+        
+        # CSRF-Token für Templates verfügbar machen
+        @app.context_processor
+        def inject_csrf_token():
+            from flask_wtf.csrf import generate_csrf
+            return dict(csrf_token=lambda: generate_csrf())
             
         # CSRF Error Handler
         @app.errorhandler(400)
@@ -91,7 +93,7 @@ if csrf_enabled:
         csrf_enabled = False
 else:
     csrf = None
-    app.logger.info("CSRF Protection deaktiviert (Development-Modus)")
+    app.logger.info("CSRF Protection deaktiviert (Bessere Kompatibilität)")
 
 # Rate Limiting
 rate_limit_enabled = os.getenv('RATE_LIMIT_ENABLED', 'True').lower() == 'true'
