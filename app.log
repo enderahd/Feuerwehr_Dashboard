@@ -1,0 +1,15 @@
+2025-08-19 15:13:25,640 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.178.134:5000
+2025-08-19 15:13:25,641 - INFO - [33mPress CTRL+C to quit[0m
+2025-08-19 15:13:38,148 - INFO - 127.0.0.1 - - [19/Aug/2025 15:13:38] "GET /dashboard HTTP/1.1" 200 -
+2025-08-19 15:13:38,585 - INFO - 127.0.0.1 - - [19/Aug/2025 15:13:38] "[33mGET /get_auto_update_status HTTP/1.1[0m" 404 -
+2025-08-19 15:13:38,858 - INFO - 127.0.0.1 - - [19/Aug/2025 15:13:38] "GET /wetter_update HTTP/1.1" 200 -
+2025-08-19 15:13:54,466 - INFO - 127.0.0.1 - - [19/Aug/2025 15:13:54] "POST /upload HTTP/1.1" 200 -
+2025-08-19 15:13:54,685 - INFO - 127.0.0.1 - - [19/Aug/2025 15:13:54] "GET /wetter_update HTTP/1.1" 200 -
+2025-08-19 15:14:20,112 - INFO - 127.0.0.1 - - [19/Aug/2025 15:14:20] "POST /update_infos HTTP/1.1" 200 -
+2025-08-19 15:14:32,020 - INFO - 127.0.0.1 - - [19/Aug/2025 15:14:32] "[31m[1mPOST /toggle_auto_update HTTP/1.1[0m" 400 -
+2025-08-19 15:14:33,864 - INFO - 127.0.0.1 - - [19/Aug/2025 15:14:33] "[31m[1mPOST /toggle_auto_update HTTP/1.1[0m" 400 -
+2025-08-19 15:14:36,138 - INFO - 127.0.0.1 - - [19/Aug/2025 15:14:36] "[31m[1mPOST /toggle_auto_update HTTP/1.1[0m" 400 -
+2025-08-19 15:14:37,371 - INFO - 127.0.0.1 - - [19/Aug/2025 15:14:37] "GET /wetter_update HTTP/1.1" 200 -

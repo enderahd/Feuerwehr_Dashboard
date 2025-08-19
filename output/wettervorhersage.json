@@ -1,23 +1,23 @@
 [
     {
-        "date": "2025-05-16",
-        "min_temperature": "9\u00b0C",
-        "max_temperature": "16\u00b0C",
-        "weather": "M\u00e4\u00dfiger Regen",
-        "icon": "10d"
+        "date": "2025-08-20",
+        "min_temperature": "13\u00b0C",
+        "max_temperature": "25\u00b0C",
+        "weather": "M\u00e4\u00dfig bew\u00f6lkt",
+        "icon": "03d"
     },
     {
-        "date": "2025-05-17",
-        "min_temperature": "8\u00b0C",
-        "max_temperature": "16\u00b0C",
-        "weather": "Leichter Regen",
-        "icon": "10d"
+        "date": "2025-08-21",
+        "min_temperature": "14\u00b0C",
+        "max_temperature": "23\u00b0C",
+        "weather": "Klarer Himmel",
+        "icon": "01d"
     },
     {
-        "date": "2025-05-18",
-        "min_temperature": "8\u00b0C",
-        "max_temperature": "15\u00b0C",
-        "weather": "Bedeckt",
+        "date": "2025-08-22",
+        "min_temperature": "14\u00b0C",
+        "max_temperature": "17\u00b0C",
+        "weather": "\u00dcberwiegend bew\u00f6lkt",
         "icon": "04d"
     }
 ]

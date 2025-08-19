@@ -4,11 +4,14 @@ import json
 import logging
 import datetime
 import requests
-import subprocess
+import signal
+import sys
+from pathlib import Path
+from typing import Any, Optional
 from dotenv import load_dotenv
 from logging.handlers import RotatingFileHandler
 from werkzeug.utils import secure_filename
-from wetterdaten import main, auto_update_wetterdaten
+from wetterdaten import main
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -17,17 +20,47 @@ from flask_wtf.file import FileField, FileAllowed
 from wtforms import PasswordField, SubmitField
 from wtforms.validators import DataRequired
 
-load_dotenv(dotenv_path=".env")  # Umgebungsvariablen laden, falls benötigt
+# Umgebung laden (Produktion hat Vorrang)
+flask_env = 'development'
+if os.path.exists('.env.production'):
+    load_dotenv('.env.production')
+    flask_env = 'production'
+else:
+    load_dotenv('.env')
+    flask_env = os.getenv('FLASK_ENV', 'development')
 
 app = Flask(__name__, template_folder='templates')
-app.secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key')
-TARGET_DIR = os.getenv('zielverzeichnis')
-  # Geheimschlüssel für Sitzungen
 
-csrf = CSRFProtect(app)
-send = requests
-limiter = Limiter(key_func=get_remote_address)
-limiter.init_app(app)
+# Konfiguration basierend auf Umgebung
+if flask_env == 'production':
+    app.config['DEBUG'] = False
+    app.config['TESTING'] = False
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['PERMANENT_SESSION_LIFETIME'] = int(os.getenv('SESSION_TIMEOUT', 3600))
+else:
+    app.config['DEBUG'] = True
+
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key_for_development_only')
+TARGET_DIR = os.getenv('zielverzeichnis', '/opt/feuerwehr_dashboard')
+
+# CSRF Schutz
+csrf_enabled = os.getenv('CSRF_ENABLED', 'True').lower() == 'true'
+if csrf_enabled:
+    csrf = CSRFProtect(app)
+
+# Rate Limiting
+rate_limit_enabled = os.getenv('RATE_LIMIT_ENABLED', 'True').lower() == 'true'
+if rate_limit_enabled:
+    limiter = Limiter(key_func=get_remote_address)
+    limiter.init_app(app)
+    default_rate_limit = os.getenv('RATE_LIMIT_DEFAULT', '100 per hour')
+    login_rate_limit = os.getenv('RATE_LIMIT_LOGIN', '5 per minute')
+else:
+    limiter = None
+    default_rate_limit = None
+    login_rate_limit = None
 
 # Zielverzeichnisse basierend auf der Nummer
 TARGET_DIRS = {
@@ -55,8 +88,16 @@ class UploadForm(FlaskForm):
     submit = SubmitField('Hochladen')
 
 @app.route("/", methods=['GET', 'POST'])
-@limiter.limit("5 per minute")
 def login():
+    if limiter and login_rate_limit:
+        @limiter.limit(login_rate_limit)
+        def rate_limited_login():
+            return _login()
+        return rate_limited_login()
+    else:
+        return _login()
+
+def _login():
     form = LoginForm()
     user_ip = request.remote_addr
     app.logger.info(f"Login von IP-Adresse: {user_ip}")
@@ -97,7 +138,7 @@ def upload_file():
         app.logger.error(f"Ungültige Nummer angegeben: {number}")
         return jsonify({'error': 'Invalid number provided'}), 400
 
-    if file.filename == '':
+    if file.filename is None or file.filename == '':
         app.logger.error("Kein Dateiname angegeben.")
         return jsonify({'error': 'No filename provided'}), 400
 
@@ -165,7 +206,7 @@ def wetter_update():
 
 @app.route('/toggle_auto_update', methods=['POST'])
 def toggle_auto_update():
-    if 'auto_update' not in request.json:
+    if not request.json or 'auto_update' not in request.json:
         return jsonify({'error': 'No auto_update status provided'}), 400
     auto_update = request.json['auto_update']
 
@@ -182,10 +223,11 @@ def toggle_auto_update():
 @app.route("/pdf_belegt", methods=['GET'])
 def pdf_belegt():
     pdf_files = []
-    target_dir = 'pdfs'
-    for file in os.listdir(target_dir):
-        if file.endswith('.pdf'):
-            pdf_files.append(file)
+    target_dir = f'{TARGET_DIR}/pdfs'
+    if os.path.exists(target_dir):
+        for file in os.listdir(target_dir):
+            if file.endswith('.pdf'):
+                pdf_files.append(file)
     print(pdf_files)
 
     return jsonify({'pdf_files': pdf_files}), 200
@@ -202,42 +244,114 @@ def log_error():
     print(response.json())
     return jsonify({'message': 'Error logged successfully'}), 200
 
-if __name__ == '__main__':
-    # Logging-Konfiguration (wird immer ausgeführt, egal ob direkt oder via Gunicorn)
-    if os.path.exists('app.log'):
-        os.remove('app.log')
-    try:
-        handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=1)
-        handler.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        app.logger.addHandler(handler)
-
+def setup_logging():
+    """Konfiguriert das Logging für Produktion und Development"""
+    log_level = getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper())
+    
+    # Log-Verzeichnis erstellen
+    if flask_env == 'production':
+        log_dir = Path('/var/log/feuerwehr_dashboard')
+        log_file = log_dir / 'app.log'
+        log_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        log_file = Path('app.log')
+        if log_file.exists():
+            log_file.unlink()  # Entferne alte Log-Datei in Development
+    
+    # Rotating File Handler
+    max_bytes = int(os.getenv('MAX_LOG_SIZE', 10485760))  # 10MB
+    backup_count = int(os.getenv('LOG_BACKUP_COUNT', 5))
+    
+    handler = RotatingFileHandler(
+        str(log_file), 
+        maxBytes=max_bytes, 
+        backupCount=backup_count
+    )
+    handler.setLevel(log_level)
+    
+    # Formatter
+    if flask_env == 'production':
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(remote_addr)s - %(message)s'
+        )
+    else:
+        formatter = logging.Formatter(
+            '%(asctime)s - %(levelname)s - %(message)s'
+        )
+    handler.setFormatter(formatter)
+    
+    # App Logger
+    app.logger.addHandler(handler)
+    app.logger.setLevel(log_level)
+    
+    # Console Handler nur in Development
+    if flask_env != 'production':
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
+        console_handler.setLevel(log_level)
         console_handler.setFormatter(formatter)
         app.logger.addHandler(console_handler)
+    
+    # Werkzeug Logger
+    werkzeug_logger = logging.getLogger('werkzeug')
+    werkzeug_logger.setLevel(log_level)
+    werkzeug_logger.addHandler(handler)
+    
+    app.logger.info(f"Logging konfiguriert - Umgebung: {flask_env}")
 
-        werkzeug_logger = logging.getLogger('werkzeug')
-        werkzeug_logger.setLevel(logging.INFO)
-        werkzeug_logger.addHandler(handler)
+def create_directories():
+    """Erstellt erforderliche Verzeichnisse"""
+    directories = [
+        f'{TARGET_DIR}/pdfs',
+        f'{TARGET_DIR}/output'
+    ]
+    
+    for directory in directories:
+        os.makedirs(directory, exist_ok=True)
+        
+    if flask_env == 'production':
+        os.makedirs('/var/log/feuerwehr_dashboard', exist_ok=True)
 
-        app.logger.info("Test-Log: Die Anwendung wurde (Gunicorn-kompatibel) geladen.")
-    except Exception as e:
-        print(f"Fehler beim Logging-Setup: {str(e)}")
-        app.logger.error(f"Fehler beim Logging-Setup: {str(e)}")
+# Initialisierung
+create_directories()
+setup_logging()
 
-    # Anwendung starten
+def graceful_shutdown(signum: int, frame: Any) -> None:
+    """Graceful shutdown handler für Produktion"""
+    app.logger.info("Graceful shutdown initiiert")
+    sys.exit(0)
+
+if __name__ == '__main__':
+    # Signal Handler für graceful shutdown
+    if flask_env == 'production':
+        signal.signal(signal.SIGTERM, graceful_shutdown)
+        signal.signal(signal.SIGINT, graceful_shutdown)
+    
+    # Server-Konfiguration
+    host = os.getenv('HOST', '127.0.0.1')
+    port = int(os.getenv('PORT', 5000))
+    debug = flask_env != 'production'
+    
+    app.logger.info(f"Starte Feuerwehr Dashboard - Umgebung: {flask_env}")
+    
     try:
-        app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+        if flask_env == 'production':
+            # In Produktion: Verwende Gunicorn oder andere WSGI Server
+            app.logger.info("Produktionsumgebung erkannt. Verwende WSGI Server.")
+            app.run(host=host, port=port, debug=False, use_reloader=False)
+        else:
+            # Development: Flask Development Server
+            app.run(host=host, port=port, debug=debug, use_reloader=True)
     except Exception as e:
-        print(f"Fehler beim Starten der Anwendung: {str(e)}")
         app.logger.error(f"Fehler beim Starten der Anwendung: {str(e)}")
-        error = f"Fehler {str(e)} um {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        requests.post("http://100.104.101.101:6000/error", json={"error": str(e)})  # Beispiel-URL, an die der Fehler gesendet werden soll
-        print(f"Fehler wurde an die URL gesendet: {error}")
-        app.logger.error(f"Fehler wurde an die URL gesendet: {error}")
-        print("Server wird neu gestartet...")
-        app.logger.info(f"Server wird neu gestartet{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        exit(1)
-        subprocess.run(["sudo reboot"], shell=True)
+        error_msg = f"Kritischer Fehler {str(e)} um {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        
+        # Fehler-Reporting (nur wenn konfiguriert)
+        error_url = os.getenv('ERROR_REPORTING_URL')
+        if error_url:
+            try:
+                requests.post(error_url, json={"error": str(e)}, timeout=5)
+                app.logger.info("Fehler wurde an Monitoring-System gesendet")
+            except Exception:
+                app.logger.warning("Fehler-Reporting fehlgeschlagen")
+        
+        sys.exit(1)

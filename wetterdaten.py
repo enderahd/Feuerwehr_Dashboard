@@ -4,9 +4,10 @@ import os
 import time
 import shutil
 import datetime as dt
+from typing import Dict, Any, Optional
 
 
-def get_weather_data(api_key, city):
+def get_weather_data(api_key: str, city: str) -> Optional[Dict[str, Any]]:
     url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=de"
     try:
         response = requests.get(url)
@@ -19,7 +20,7 @@ def get_weather_data(api_key, city):
         return None
     return response.json()
 
-def get_weather_forecast(api_key, city):
+def get_weather_forecast(api_key: str, city: str) -> Optional[Dict[str, Any]]:
     url = f"http://api.openweathermap.org/data/2.5/forecast?q={city}&appid={api_key}&units=metric&lang=de"
     try:
         response = requests.get(url)
@@ -32,7 +33,7 @@ def get_weather_forecast(api_key, city):
         return None
     return response.json()
 
-def save_weather_data(data, filename):
+def save_weather_data(data: Dict[str, Any], filename: str) -> None:
     temp_akut = round(data['main']['temp'])
     temp_min = round(data['main']['temp_min'])
     temp_max = round(data['main']['temp_max'])
@@ -51,9 +52,10 @@ def save_weather_data(data, filename):
         json.dump(save, json_file, indent=4)
     print(f"Wetterdaten wurden in {filename} gespeichert.")
 
-def save_weather_forecast(data, filename):
+def save_weather_forecast(data: Dict[str, Any], filename: str) -> None:
     forecast_data = {}
     day_conter = 0
+    daily_forecast = []
     for entry in data['list']:
         date, time = entry['dt_txt'].split(' ')
         if date == dt.datetime.now().strftime('%Y-%m-%d'):
@@ -74,9 +76,6 @@ def save_weather_forecast(data, filename):
                 source_folder = 'Datenback_images'
                 output_folder = 'output'
                 os.makedirs(output_folder, exist_ok=True)
-                weather_icon_file_in = os.path.join(source_folder, f"{entry['weather'][0]['icon']}.png")
-                weather_icon_file_out = os.path.join(output_folder, f'{data}.png')
-                print(f"das ist das wetter Bild{weather_icon_file_out}")
                 copy_and_rename_image(source_folder, entry['weather'][0]['icon'], output_folder, f"{date}.png")
                 day_conter += 1
 
@@ -97,7 +96,7 @@ def save_weather_forecast(data, filename):
 
     print(f"Wettervorhersage wurde in {filename} gespeichert.")
 
-def copy_and_rename_image(source_folder, icon_code, destination_folder, new_filename):
+def copy_and_rename_image(source_folder: str, icon_code: str, destination_folder: str, new_filename: str) -> None:
     print(f"Kopiere Bild {icon_code}.png...")
     source_file = os.path.join(source_folder, f"{icon_code}.png")
     destination_file = os.path.join(destination_folder, new_filename)
@@ -107,8 +106,18 @@ def copy_and_rename_image(source_folder, icon_code, destination_folder, new_file
     else:
         print(f"Bild {source_file} wurde nicht gefunden.")
 
-def auto_update_wetterdaten():
-    with open('output/auto_update_status.json', 'r') as json_file:
+def auto_update_wetterdaten() -> None:
+    target_dir = os.getenv('zielverzeichnis')
+    if not target_dir:
+        print("Zielverzeichnis nicht gesetzt!")
+        return
+    
+    status_file = f'{target_dir}/output/auto_update_status.json'
+    if not os.path.exists(status_file):
+        print(f"Auto-update Status-Datei nicht gefunden: {status_file}")
+        return
+        
+    with open(status_file, 'r') as json_file:
         data = json.load(json_file)
         auto_update = data['auto_update']
     while auto_update == True:
@@ -116,7 +125,7 @@ def auto_update_wetterdaten():
         time.sleep(3600)
 
 
-def main():
+def main() -> None:
     api_key = os.getenv('OPENWEATHER_API_KEY')
     target_dir = os.getenv('zielverzeichnis')
     if not api_key:
@@ -144,10 +153,25 @@ def main():
 
 
 if __name__ == "__main__":
-    with open('output/auto_update_status.json', 'r') as json_file:
-        data = json.load(json_file)
-    data['auto_update'] = True
-    with open('output/auto_update_status.json', 'w') as json_file:
-        json.dump(data, json_file, indent=4)
+    target_dir = os.getenv('zielverzeichnis')
+    if not target_dir:
+        print("Zielverzeichnis nicht gesetzt!")
+        exit(1)
+    
+    status_file = f'{target_dir}/output/auto_update_status.json'
+    os.makedirs(f'{target_dir}/output', exist_ok=True)
+    
+    # Auto-update Status initialisieren falls Datei nicht existiert
+    if not os.path.exists(status_file):
+        data = {'auto_update': True}
+        with open(status_file, 'w') as json_file:
+            json.dump(data, json_file, indent=4)
+    else:
+        with open(status_file, 'r') as json_file:
+            data = json.load(json_file)
+        data['auto_update'] = True
+        with open(status_file, 'w') as json_file:
+            json.dump(data, json_file, indent=4)
+    
     auto_update_wetterdaten()
     # main()
