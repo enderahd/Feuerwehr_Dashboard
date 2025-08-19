@@ -52,7 +52,12 @@
     <div class="login-container">
         <h1>Login</h1>
         <form method="POST">
-            {{ form.hidden_tag() }}
+            {% if csrf_token %}
+                {{ form.hidden_tag() }}
+            {% else %}
+                <!-- Fallback für CSRF-Token -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}"/>
+            {% endif %}
             {{ form.password(size=32, placeholder="Passwort eingeben") }}
             {{ form.submit() }}
         </form>

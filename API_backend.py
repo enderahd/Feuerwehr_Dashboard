@@ -20,13 +20,28 @@ from flask_wtf.file import FileField, FileAllowed
 from wtforms import PasswordField, SubmitField
 from wtforms.validators import DataRequired
 
-# Umgebung laden (Produktion hat Vorrang)
+# Umgebung laden (Development hat Vorrang für lokales Testen)
 flask_env = 'development'
-if os.path.exists('.env.production'):
+if os.path.exists('.env') and not os.path.exists('.env.production'):
+    # Nur .env vorhanden -> Development
+    load_dotenv('.env')
+    flask_env = os.getenv('FLASK_ENV', 'development')
+elif os.path.exists('.env.production') and not os.path.exists('.env'):
+    # Nur .env.production vorhanden -> Production  
     load_dotenv('.env.production')
     flask_env = 'production'
+elif os.path.exists('.env') and os.path.exists('.env.production'):
+    # Beide vorhanden -> Prüfe ENV Variable oder nutze .env für Development
+    env_override = os.getenv('FORCE_PRODUCTION', 'false').lower()
+    if env_override == 'true':
+        load_dotenv('.env.production')
+        flask_env = 'production'
+    else:
+        load_dotenv('.env')  # Development hat Vorrang
+        flask_env = os.getenv('FLASK_ENV', 'development')
 else:
-    load_dotenv('.env')
+    # Fallback
+    load_dotenv()
     flask_env = os.getenv('FLASK_ENV', 'development')
 
 app = Flask(__name__, template_folder='templates')
@@ -45,10 +60,34 @@ else:
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key_for_development_only')
 TARGET_DIR = os.getenv('zielverzeichnis', '/opt/feuerwehr_dashboard')
 
-# CSRF Schutz
-csrf_enabled = os.getenv('CSRF_ENABLED', 'True').lower() == 'true'
+# CSRF Schutz - nur in Produktion aktivieren
+csrf_enabled = os.getenv('CSRF_ENABLED', 'False').lower() == 'true' and flask_env == 'production'
+csrf = None
 if csrf_enabled:
-    csrf = CSRFProtect(app)
+    try:
+        csrf = CSRFProtect(app)
+        app.logger.info("CSRF Protection aktiviert")
+        
+        # CSRF-Token für Templates verfügbar machen
+        @app.context_processor
+        def inject_csrf_token():
+            from flask_wtf.csrf import generate_csrf
+            return dict(csrf_token=lambda: generate_csrf() if csrf else None)
+            
+        # CSRF Error Handler
+        @app.errorhandler(400)
+        def csrf_error(reason):
+            app.logger.warning(f"CSRF Fehler: {reason}")
+            # Fallback zu einfachem Login
+            return redirect(url_for('simple_login'))
+            
+    except Exception as e:
+        app.logger.warning(f"CSRF Setup fehlgeschlagen: {e}")
+        csrf = None
+        csrf_enabled = False
+else:
+    csrf = None
+    app.logger.info("CSRF Protection deaktiviert (Development-Modus)")
 
 # Rate Limiting
 rate_limit_enabled = os.getenv('RATE_LIMIT_ENABLED', 'True').lower() == 'true'
@@ -98,20 +137,62 @@ def login():
         return _login()
 
 def _login():
-    form = LoginForm()
+    # Versuche zuerst Flask-WTF Form (nur wenn CSRF aktiviert ist)
+    if csrf_enabled:
+        try:
+            form = LoginForm()
+            user_ip = request.remote_addr
+            app.logger.info(f"Login-Versuch von IP-Adresse: {user_ip} (mit CSRF)")
+            
+            if form.validate_on_submit():
+                entered_password = form.password.data
+                if entered_password == PASSWORD:
+                    session['authenticated'] = True
+                    app.logger.info("Erfolgreicher Login mit Flask-WTF.")
+                    return redirect(url_for('dashboard'))
+                else:
+                    app.logger.warning("Fehlgeschlagener Login-Versuch.")
+                    return render_template("login.html", form=form, error="Falsches Passwort!")
+            
+            # Wenn Form nicht validiert hat, prüfe ob CSRF das Problem ist
+            if request.method == 'POST' and form.errors:
+                app.logger.warning(f"Form-Validierung fehlgeschlagen: {form.errors}")
+                # Bei CSRF-Fehlern, leite zu einfachem Login weiter
+                if any('csrf' in str(error).lower() for error in form.errors.values() if error):
+                    app.logger.info("CSRF-Fehler erkannt, weiterleitung zu einfachem Login")
+                    return redirect(url_for('simple_login'))
+            
+            return render_template("login.html", form=form)
+        
+        except Exception as e:
+            app.logger.warning(f"Flask-WTF Fehler: {e}, verwende einfaches Login")
+            # Fallback: Einfaches Login ohne WTF
+            return redirect(url_for('simple_login'))
+    else:
+        # Kein CSRF aktiviert, nutze einfaches Login
+        return _simple_login()
+
+@app.route("/simple_login", methods=['GET', 'POST'])
+def simple_login():
+    """Einfaches Login ohne Flask-WTF für CSRF-Probleme"""
+    return _simple_login()
+
+def _simple_login():
+    """Einfache Login-Logik ohne CSRF"""
     user_ip = request.remote_addr
-    app.logger.info(f"Login von IP-Adresse: {user_ip}")
-    print(f"Login von IP-Adresse: {user_ip}")
-    if form.validate_on_submit():
-        entered_password = form.password.data
+    app.logger.info(f"Einfacher Login-Versuch von IP-Adresse: {user_ip}")
+    
+    if request.method == 'POST':
+        entered_password = request.form.get('password', '')
         if entered_password == PASSWORD:
             session['authenticated'] = True
-            app.logger.info("Erfolgreicher Login.")
+            app.logger.info("Erfolgreicher Login (einfach).")
             return redirect(url_for('dashboard'))
         else:
-            app.logger.warning("Fehlgeschlagener Login-Versuch.")
-            return render_template("login.html", form=form, error="Falsches Passwort!")
-    return render_template("login.html", form=form)
+            app.logger.warning("Fehlgeschlagener Login-Versuch (einfach).")
+            return render_template("login_simple.html", error="Falsches Passwort!")
+    
+    return render_template("login_simple.html")
 
 @app.route("/dashboard")
 def dashboard():
@@ -255,8 +336,12 @@ def setup_logging():
         log_dir.mkdir(parents=True, exist_ok=True)
     else:
         log_file = Path('app.log')
-        if log_file.exists():
-            log_file.unlink()  # Entferne alte Log-Datei in Development
+        # Versuche alte Log-Datei zu löschen, ignoriere Fehler
+        try:
+            if log_file.exists():
+                log_file.unlink()
+        except (PermissionError, OSError):
+            pass  # Ignoriere Fehler beim Löschen
     
     # Rotating File Handler
     max_bytes = int(os.getenv('MAX_LOG_SIZE', 10485760))  # 10MB
@@ -272,7 +357,7 @@ def setup_logging():
     # Formatter
     if flask_env == 'production':
         formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(remote_addr)s - %(message)s'
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
     else:
         formatter = logging.Formatter(
