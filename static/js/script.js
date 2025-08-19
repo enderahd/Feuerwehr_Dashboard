@@ -1,10 +1,90 @@
+// Lade Wetterdaten für Frontend
+async function loadWeatherData() {
+  try {
+    const weatherResponse = await fetch('/api/public/weather');
+    if (weatherResponse.ok) {
+      const weatherData = await weatherResponse.json();
+      updateWeatherDisplay(weatherData);
+    }
+    
+    const forecastResponse = await fetch('/api/public/forecast');
+    if (forecastResponse.ok) {
+      const forecastData = await forecastResponse.json();
+      updateForecastDisplay(forecastData);
+    }
+  } catch (error) {
+    console.error('Fehler beim Laden der Wetterdaten:', error);
+  }
+}
+
+// Lade Lauftext
+async function loadInfoData() {
+  try {
+    const response = await fetch('/api/public/info');
+    if (response.ok) {
+      const data = await response.json();
+      updateMarqueeText(data.infos);
+    }
+  } catch (error) {
+    console.error('Fehler beim Laden der Info-Daten:', error);
+  }
+}
+
+function updateWeatherDisplay(data) {
+  const weatherElement = document.getElementById('weather');
+  const weatherIcon = document.getElementById('weather-icon');
+  const minTemp = document.getElementById('min-temp');
+  const maxTemp = document.getElementById('max-temp');
+  
+  if (weatherElement) weatherElement.textContent = data.description || 'Wetter nicht verfügbar';
+  if (weatherIcon && data.icon) weatherIcon.src = `/static/Datenback_images/${data.icon}.png`;
+  if (minTemp) minTemp.textContent = `Min: ${data.temp_min}°C`;
+  if (maxTemp) maxTemp.textContent = `Max: ${data.temp_max}°C`;
+}
+
+function updateForecastDisplay(data) {
+  const container = document.getElementById('forecast-container');
+  if (!container || !data.list) return;
+  
+  container.innerHTML = '';
+  data.list.slice(0, 3).forEach(day => {
+    const dayElement = document.createElement('div');
+    dayElement.className = 'forecast-day';
+    dayElement.innerHTML = `
+      <div>${new Date(day.dt * 1000).toLocaleDateString('de-DE', { weekday: 'short' })}</div>
+      <img src="/static/Datenback_images/${day.weather[0].icon}.png" alt="${day.weather[0].description}" />
+      <div>${Math.round(day.main.temp)}°C</div>
+    `;
+    container.appendChild(dayElement);
+  });
+}
+
+function updateMarqueeText(text) {
+  const marquee = document.getElementById('marquee1');
+  if (marquee && text) {
+    marquee.querySelector('p').textContent = text;
+  }
+}
+
+// Initialisierung
+document.addEventListener('DOMContentLoaded', function() {
+  loadPdfs();
+  loadWeatherData();
+  loadInfoData();
+  
+  // Regelmäßige Updates
+  setInterval(loadWeatherData, 300000); // Alle 5 Minuten
+  setInterval(loadInfoData, 60000); // Alle 1 Minute
+  setInterval(loadPdfs, reloadInterval); // PDF reload
+});
+
 const pdfUrls = [
-  'pdfs/1.pdf',
-  'pdfs/2.pdf',
-  'pdfs/3.pdf',
-  'pdfs/4.pdf',
-  'pdfs/5.pdf',
-  'pdfs/6.pdf'
+  '/api/public/pdfs/1.pdf',
+  '/api/public/pdfs/2.pdf',
+  '/api/public/pdfs/3.pdf',
+  '/api/public/pdfs/4.pdf',
+  '/api/public/pdfs/5.pdf',
+  '/api/public/pdfs/6.pdf'
 ];
 
 const intervalTimes = [15000, 15000, 15000, 15000, 15000, 15000];
@@ -95,17 +175,17 @@ window.addEventListener('resize', () => {
 });
 
 function loadWeatherData() {
-  fetch('output/wetterdaten.json')
+  fetch('~/output/wetterdaten.json')
     .then(response => response.json())
     .then(data => {
       document.getElementById('weather').innerText = `${data.weather}, ${data.akt_temperature}`;
-      document.getElementById('weather-icon').src = `output/wetter_icon.png`;
+      document.getElementById('weather-icon').src = `~/output/wetter_icon.png`;
       document.getElementById('min-temp').innerText = `Min: ${data.min_temperature}`;
       document.getElementById('max-temp').innerText = `Max: ${data.max_temperature}`;
     })
     .catch(error => console.error('Fehler beim Laden der Wetterdaten:', error));
 
-  fetch('output/wettervorhersage.json')
+  fetch('~/output/wettervorhersage.json')
     .then(response => response.json())
     .then(data => {
       const forecastContainer = document.getElementById('forecast-container');
@@ -119,7 +199,7 @@ function loadWeatherData() {
         dateElement.innerText = new Date(day.date).toLocaleDateString('de-DE', { weekday: 'short' });
 
         const iconElement = document.createElement('img');
-        iconElement.src = `output/${day.date}.png`; // Verwende das passende Bild aus dem output-Ordner
+        iconElement.src = `~/output/${day.date}.png`; // Verwende das passende Bild aus dem output-Ordner
 
         const tempElement = document.createElement('p');
         tempElement.innerText = `${day.min_temperature} / ${day.max_temperature}`;
@@ -140,7 +220,7 @@ function updateWeatherData() {
 }
 
 function loadMarqueeData() {
-  fetch('output/infos.json')
+  fetch('~/output/infos.json')
     .then(response => response.json())
     .then(data => {
       const marquee1 = document.getElementById('marquee1').querySelector('p');

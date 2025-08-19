@@ -10,7 +10,7 @@ WorkingDirectory=/opt/feuerwehr_dashboard
 Environment=PATH=/opt/feuerwehr_dashboard/venv/bin
 Environment=FLASK_ENV=production
 EnvironmentFile=/opt/feuerwehr_dashboard/.env.production
-ExecStart=/opt/feuerwehr_dashboard/venv/bin/gunicorn --bind 0.0.0.0:5000 --workers 2 --timeout 120 --access-logfile /var/log/feuerwehr_dashboard/access.log --error-logfile /var/log/feuerwehr_dashboard/error.log wsgi:app
+ExecStart=/opt/feuerwehr_dashboard/venv/bin/gunicorn --bind 0.0.0.0:5001 --workers 2 --timeout 120 --access-logfile /var/log/feuerwehr_dashboard/access.log --error-logfile /var/log/feuerwehr_dashboard/error.log wsgi:app
 ExecReload=/bin/kill -s HUP $MAINPID
 Restart=always
 RestartSec=10

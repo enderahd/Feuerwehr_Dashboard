@@ -1,5 +1,7 @@
 #!/bin/bash
 # Deployment Script für Feuerwehr Dashboard auf Raspberry Pi
+# Frontend: Port 80 (Nginx) → Public Dashboard
+# Backend: Port 5000 (Nginx) → Admin Interface (Port 5001 intern)
 
 set -e
 
@@ -12,6 +14,9 @@ INSTALL_DIR="/opt/${PROJECT_NAME}"
 SERVICE_NAME="feuerwehr-dashboard"
 USER="www-data"
 GROUP="www-data"
+FRONTEND_PORT=80
+BACKEND_PORT=5000
+BACKEND_INTERNAL_PORT=5001
 
 # Root-Rechte prüfen
 if [[ $EUID -ne 0 ]]; then
@@ -86,7 +91,11 @@ OPENWEATHER_API_KEY=your_api_key_here
 
 # Server Konfiguration
 HOST=0.0.0.0
-PORT=5000
+PORT=5001
+
+# Nginx Ports
+FRONTEND_PORT=80
+BACKEND_PORT=5000
 
 # Logging Konfiguration
 LOG_LEVEL=INFO
@@ -114,31 +123,10 @@ systemctl enable $SERVICE_NAME
 
 # Nginx Konfiguration
 echo "🌐 Nginx wird konfiguriert..."
-cat > /etc/nginx/sites-available/$PROJECT_NAME << EOF
-server {
-    listen 80;
-    server_name _;
+cp $INSTALL_DIR/config/nginx-dashboard.conf /etc/nginx/sites-available/$PROJECT_NAME
 
-    client_max_body_size 16M;
-
-    location / {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
-
-    location /static {
-        alias $INSTALL_DIR/static;
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-}
-EOF
+# Pfade in Nginx-Konfiguration anpassen
+sed -i "s|/opt/feuerwehr_dashboard|$INSTALL_DIR|g" /etc/nginx/sites-available/$PROJECT_NAME
 
 # Nginx Site aktivieren
 ln -sf /etc/nginx/sites-available/$PROJECT_NAME /etc/nginx/sites-enabled/
@@ -162,10 +150,14 @@ systemctl status $SERVICE_NAME
 # Startup-Test
 echo "🧪 Service-Test..."
 sleep 5
-if systemctl is-active --quiet $SERVICE_NAME; then
+if systemctl is-active --quiet "$SERVICE_NAME"; then
     echo "✅ Service läuft erfolgreich!"
     echo ""
     echo "🎉 Deployment erfolgreich abgeschlossen!"
+    echo ""
+    echo "🌐 Zugriff auf das Dashboard:"
+    echo "   Frontend (Öffentlich): http://$(hostname -I | awk '{print $1}')"
+    echo "   Backend (Admin):       http://$(hostname -I | awk '{print $1}'):5000"
     echo ""
     echo "📋 Nächste Schritte:"
     echo "1. Bearbeiten Sie $INSTALL_DIR/.env.production"
@@ -173,6 +165,10 @@ if systemctl is-active --quiet $SERVICE_NAME; then
     echo "3. Ändern Sie das Standard-Passwort"
     echo "4. Starten Sie den Service neu: sudo systemctl restart $SERVICE_NAME"
     echo ""
+    echo "🔧 Wartung:"
+    echo "   Logs anzeigen: sudo journalctl -u $SERVICE_NAME -f"
+    echo "   Service Status: sudo systemctl status $SERVICE_NAME"
+    echo "   Nginx Status: sudo systemctl status nginx"
     echo "🌐 Das Dashboard ist erreichbar unter: http://$(hostname -I | awk '{print $1}')"
     echo ""
     echo "📊 Monitoring:"
@@ -182,5 +178,40 @@ if systemctl is-active --quiet $SERVICE_NAME; then
 else
     echo "❌ Service konnte nicht gestartet werden!"
     echo "Logs prüfen: sudo journalctl -u $SERVICE_NAME"
+    echo "Debug-Informationen:"
+    echo "- Service-Name: $SERVICE_NAME"
+    echo "- Install-Dir: $INSTALL_DIR"
+    echo "- Project-Name: $PROJECT_NAME"
+    
+    # Zeige detaillierte Fehlerinformationen
+    echo ""
+    echo "🔍 Detaillierte Fehleranalyse:"
+    
+    # Prüfe ob Service-Datei existiert
+    if [ -f "/etc/systemd/system/$SERVICE_NAME.service" ]; then
+        echo "✅ Service-Datei existiert"
+    else
+        echo "❌ Service-Datei fehlt: /etc/systemd/system/$SERVICE_NAME.service"
+    fi
+    
+    # Prüfe Installationsverzeichnis
+    if [ -d "$INSTALL_DIR" ]; then
+        echo "✅ Installationsverzeichnis existiert: $INSTALL_DIR"
+        echo "Inhalt:"
+        ls -la "$INSTALL_DIR" | head -10
+    else
+        echo "❌ Installationsverzeichnis fehlt: $INSTALL_DIR"
+    fi
+    
+    # Zeige Service-Status
+    echo ""
+    echo "📋 Service-Status Details:"
+    systemctl status "$SERVICE_NAME" --no-pager -l
+    
+    # Zeige letzte Logs
+    echo ""
+    echo "📋 Letzte Service-Logs:"
+    journalctl -u "$SERVICE_NAME" --no-pager -l --lines=20
+    
     exit 1
 fi

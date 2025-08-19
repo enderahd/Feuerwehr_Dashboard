@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, redirect, url_for, session
+from flask import Flask, request, jsonify, render_template, redirect, url_for, session, send_file
 import os
 import json
 import logging
@@ -44,7 +44,7 @@ else:
     load_dotenv()
     flask_env = os.getenv('FLASK_ENV', 'development')
 
-app = Flask(__name__, template_folder='templates')
+app = Flask(__name__, template_folder='templates', static_folder='static')
 
 # Konfiguration basierend auf Umgebung
 if flask_env == 'production':
@@ -63,16 +63,20 @@ TARGET_DIR = os.getenv('zielverzeichnis', '/opt/feuerwehr_dashboard')
 # CSRF Schutz - nur in Produktion aktivieren
 csrf_enabled = os.getenv('CSRF_ENABLED', 'False').lower() == 'true' and flask_env == 'production'
 csrf = None
+
+# CSRF-Token für Templates verfügbar machen (immer)
+@app.context_processor
+def inject_csrf_token():
+    if csrf_enabled and csrf:
+        from flask_wtf.csrf import generate_csrf
+        return dict(csrf_token=lambda: generate_csrf())
+    else:
+        return dict(csrf_token=lambda: None)
+
 if csrf_enabled:
     try:
         csrf = CSRFProtect(app)
         app.logger.info("CSRF Protection aktiviert")
-        
-        # CSRF-Token für Templates verfügbar machen
-        @app.context_processor
-        def inject_csrf_token():
-            from flask_wtf.csrf import generate_csrf
-            return dict(csrf_token=lambda: generate_csrf() if csrf else None)
             
         # CSRF Error Handler
         @app.errorhandler(400)
@@ -184,13 +188,24 @@ def _simple_login():
     
     if request.method == 'POST':
         entered_password = request.form.get('password', '')
-        if entered_password == PASSWORD:
+        expected_password = PASSWORD
+        
+        # Debug-Informationen (nur in Development) - ohne Passwort-Details
+        if flask_env == 'development':
+            app.logger.info(f"Passwort-Vergleich: {entered_password == expected_password}")
+        
+        if entered_password == expected_password:
             session['authenticated'] = True
+            session.permanent = True
             app.logger.info("Erfolgreicher Login (einfach).")
             return redirect(url_for('dashboard'))
         else:
-            app.logger.warning("Fehlgeschlagener Login-Versuch (einfach).")
-            return render_template("login_simple.html", error="Falsches Passwort!")
+            app.logger.warning(f"Fehlgeschlagener Login-Versuch (einfach). IP: {user_ip}")
+            if flask_env == 'development':
+                return render_template("login_simple.html", 
+                                     error=f"Falsches Passwort! Erwartet: '{expected_password}', Eingegeben: '{entered_password}'")
+            else:
+                return render_template("login_simple.html", error="Falsches Passwort!")
     
     return render_template("login_simple.html")
 
@@ -285,6 +300,65 @@ def wetter_update():
     main()
     return jsonify({'message': 'Wetterdaten wurden aktualisiert'}), 200
 
+# ===== ÖFFENTLICHE API ENDPOINTS FÜR FRONTEND =====
+
+@app.route('/api/public/weather', methods=['GET'])
+def public_weather():
+    """Öffentlicher Wetter-Endpoint für Frontend"""
+    try:
+        weather_file = os.path.join(TARGET_DIR, 'output', 'wetterdaten.json')
+        if os.path.exists(weather_file):
+            with open(weather_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return jsonify(data), 200
+        else:
+            return jsonify({'error': 'Weather data not available'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/public/forecast', methods=['GET'])
+def public_forecast():
+    """Öffentlicher Vorhersage-Endpoint für Frontend"""
+    try:
+        forecast_file = os.path.join(TARGET_DIR, 'output', 'wettervorhersage.json')
+        if os.path.exists(forecast_file):
+            with open(forecast_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return jsonify(data), 200
+        else:
+            return jsonify({'error': 'Forecast data not available'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/public/info', methods=['GET'])
+def public_info():
+    """Öffentlicher Info-Endpoint für Lauftext"""
+    try:
+        info_file = os.path.join(TARGET_DIR, 'output', 'infos.json')
+        if os.path.exists(info_file):
+            with open(info_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return jsonify(data), 200
+        else:
+            return jsonify({'infos': 'Willkommen beim Feuerwehr Dashboard Glienicke/Nordbahn'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/public/pdfs/<int:number>.pdf', methods=['GET'])
+def public_pdf(number):
+    """Öffentlicher PDF-Endpoint für Frontend"""
+    if number not in TARGET_DIRS:
+        return "PDF not found", 404
+    
+    target_dir = TARGET_DIRS[number]
+    file_path = os.path.join(target_dir, f'{number}.pdf')
+    
+    if os.path.exists(file_path):
+        return send_file(file_path, mimetype='application/pdf')
+    else:
+        # Leere PDF senden wenn keine vorhanden
+        return send_file('static/empty.pdf', mimetype='application/pdf') if os.path.exists('static/empty.pdf') else ("PDF not found", 404)
+
 @app.route('/toggle_auto_update', methods=['POST'])
 def toggle_auto_update():
     if not request.json or 'auto_update' not in request.json:
@@ -312,6 +386,28 @@ def pdf_belegt():
     print(pdf_files)
 
     return jsonify({'pdf_files': pdf_files}), 200
+@app.route('/debug_info')
+def debug_info():
+    """Debug-Informationen (nur in Development)"""
+    if flask_env != 'development':
+        return "Debug-Informationen nur in Development verfügbar", 403
+    
+    info = {
+        'flask_env': flask_env,
+        'password_configured': PASSWORD,
+        'csrf_enabled': csrf_enabled,
+        'target_dir': TARGET_DIR,
+        'session_authenticated': session.get('authenticated', False),
+        'remote_addr': request.remote_addr
+    }
+    
+    return f"""
+    <h2>🔧 Debug-Informationen</h2>
+    <pre>{json.dumps(info, indent=2, ensure_ascii=False)}</pre>
+    <p><a href="/">Zurück zum Login</a></p>
+    <p><a href="/simple_login">Einfaches Login</a></p>
+    """
+
 @app.route('/error', methods=['GET'])
 def log_error():
     url = "http://100.104.101.101:5000/error"
@@ -413,7 +509,7 @@ if __name__ == '__main__':
     
     # Server-Konfiguration
     host = os.getenv('HOST', '127.0.0.1')
-    port = int(os.getenv('PORT', 5000))
+    port = int(os.getenv('PORT', 5001))  # Backend auf Port 5001
     debug = flask_env != 'production'
     
     app.logger.info(f"Starte Feuerwehr Dashboard - Umgebung: {flask_env}")
