@@ -123,9 +123,97 @@ systemctl enable $SERVICE_NAME
 
 # Nginx Konfiguration
 echo "🌐 Nginx wird konfiguriert..."
+
+# Nginx-Konfiguration direkt erstellen (falls Datei nicht existiert)
+if [ ! -f "$INSTALL_DIR/config/nginx-dashboard.conf" ]; then
+    echo "📝 Nginx-Konfiguration wird erstellt..."
+    mkdir -p $INSTALL_DIR/config
+    cat > $INSTALL_DIR/config/nginx-dashboard.conf << 'NGINX_EOF'
+# Frontend Server (Port 80) - Öffentliches Dashboard
+server {
+    listen 80;
+    server_name _;
+    
+    # Root für statische Frontend-Dateien
+    root /opt/feuerwehr_dashboard/static;
+    index index.html;
+    
+    # Security Headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    add_header Content-Security-Policy "default-src 'self' http: https: ws: wss: data: blob: 'unsafe-inline'; frame-ancestors 'self';" always;
+    
+    # Frontend Route - Hauptseite
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # API Endpoints für Frontend (ohne Auth)
+    location /api/public/ {
+        proxy_pass http://127.0.0.1:5001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # CORS Headers für Frontend
+        add_header Access-Control-Allow-Origin * always;
+        add_header Access-Control-Allow-Methods "GET, POST, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept" always;
+    }
+    
+    # Static Assets
+    location /static/ {
+        alias /opt/feuerwehr_dashboard/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable" always;
+    }
+    
+    # Deny access to sensitive files
+    location ~ /\. {
+        deny all;
+    }
+    
+    location ~ \.(env|py|sh|service)$ {
+        deny all;
+    }
+}
+
+# Backend Server (Port 5000) - Admin Interface
+server {
+    listen 5000;
+    server_name _;
+    
+    client_max_body_size 16M;
+    
+    # Backend Admin Interface
+    location / {
+        proxy_pass http://127.0.0.1:5001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
+        # Security Headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer-when-downgrade" always;
+        add_header Content-Security-Policy "default-src 'self' http: https: ws: wss: data: blob: 'unsafe-inline'; frame-ancestors 'self';" always;
+    }
+}
+NGINX_EOF
+fi
+
+# Nginx-Konfiguration kopieren und installieren
 cp $INSTALL_DIR/config/nginx-dashboard.conf /etc/nginx/sites-available/$PROJECT_NAME
 
-# Pfade in Nginx-Konfiguration anpassen
+# Pfade in Nginx-Konfiguration anpassen (falls nötig)
 sed -i "s|/opt/feuerwehr_dashboard|$INSTALL_DIR|g" /etc/nginx/sites-available/$PROJECT_NAME
 
 # Nginx Site aktivieren
@@ -136,9 +224,10 @@ nginx -t && systemctl reload nginx
 # Firewall konfigurieren (falls ufw installiert ist)
 if command -v ufw &> /dev/null; then
     echo "🔥 Firewall wird konfiguriert..."
-    ufw allow 22/tcp
-    ufw allow 80/tcp
-    ufw allow 443/tcp
+    ufw allow 22/tcp    # SSH
+    ufw allow 80/tcp    # Frontend
+    ufw allow 443/tcp   # HTTPS (falls später verwendet)
+    ufw allow 5000/tcp  # Backend Admin
     ufw --force enable
 fi
 

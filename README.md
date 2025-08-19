@@ -119,13 +119,36 @@ zielverzeichnis=/path/to/dashboard
 
 ```bash
 # Vollständiges Deployment
-./scripts/deployment/deploy.sh
+sudo ./scripts/deployment/deploy.sh
 
-# Schnelle Fixes
-./scripts/deployment/quick_fix.sh
+# Nginx-Probleme beheben
+sudo ./scripts/deployment/fix_nginx.sh
+
+# Allgemeine Reparaturen
+sudo ./scripts/deployment/quick_fix.sh
 
 # Problemdiagnose
-./scripts/deployment/troubleshoot.sh
+sudo ./scripts/deployment/troubleshoot.sh
+
+# Deployment-spezifische Diagnose  
+sudo ./scripts/deployment/troubleshoot_deployment.sh
+```
+
+### Häufige Deployment-Probleme
+
+**Problem: `cp: cannot stat 'nginx-dashboard.conf': No such file or directory`**
+```bash
+sudo ./scripts/deployment/fix_nginx.sh
+```
+
+**Problem: Service startet nicht**
+```bash
+sudo ./scripts/deployment/quick_fix.sh
+```
+
+**Problem: Port-Konflikte**
+```bash
+sudo ./scripts/deployment/troubleshoot_deployment.sh
 ```
 
 ### Manuelle Wartung
