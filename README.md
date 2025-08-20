@@ -115,10 +115,20 @@ zielverzeichnis=/path/to/dashboard
 
 ## 🚀 Deployment
 
-### Automatisches Deployment
+### ⚡ Sofort-Fix für aktuelles Problem
 
 ```bash
-# Vollständiges Deployment
+# EMPFOHLEN: Kompletter Fix mit Tests
+sudo ./scripts/deployment/complete_fix.sh
+
+# Oder: Nur Emergency-Fix
+sudo ./scripts/deployment/emergency_fix.sh
+```
+
+### 📋 Standard-Deployment
+
+```bash
+# Vollständiges Deployment (Neuinstallation)
 sudo ./scripts/deployment/deploy.sh
 
 # Nginx-Probleme beheben
@@ -128,22 +138,24 @@ sudo ./scripts/deployment/fix_nginx.sh
 sudo ./scripts/deployment/quick_fix.sh
 
 # Problemdiagnose
-sudo ./scripts/deployment/troubleshoot.sh
-
-# Deployment-spezifische Diagnose  
 sudo ./scripts/deployment/troubleshoot_deployment.sh
 ```
 
-### Häufige Deployment-Probleme
+### 🔧 Häufige Probleme & Lösungen
 
-**Problem: `cp: cannot stat 'nginx-dashboard.conf': No such file or directory`**
+**Problem: Frontend zeigt Login statt Dashboard**
 ```bash
-sudo ./scripts/deployment/fix_nginx.sh
+sudo ./scripts/deployment/complete_fix.sh
 ```
 
-**Problem: Service startet nicht**
+**Problem: "CSRF token missing"**  
 ```bash
-sudo ./scripts/deployment/quick_fix.sh
+sudo ./scripts/deployment/emergency_fix.sh
+```
+
+**Problem: Services starten nicht**
+```bash
+sudo ./scripts/deployment/complete_fix.sh
 ```
 
 **Problem: Port-Konflikte**

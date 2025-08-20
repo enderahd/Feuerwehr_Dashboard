@@ -14,9 +14,9 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
-echo "🔄 Schritt 1: Service stoppen..."
-systemctl stop $SERVICE_NAME
-systemctl stop nginx
+echo "🔄 Schritt 1: Services stoppen..."
+systemctl stop $SERVICE_NAME 2>/dev/null || echo "Service war bereits gestoppt"
+systemctl stop nginx 2>/dev/null || echo "Nginx war bereits gestoppt"
 
 echo "📝 Schritt 2: Korrigierte Nginx-Konfiguration erstellen..."
 cat > /etc/nginx/sites-available/$PROJECT_NAME << 'EOF'
@@ -93,7 +93,45 @@ echo "✅ Schritt 5: Nginx testen..."
 nginx -t
 if [ $? -ne 0 ]; then
     echo "❌ Nginx-Konfiguration fehlerhaft!"
-    exit 1
+    echo "🔍 Fehlerdetails:"
+    nginx -t
+    echo "🔧 Versuche Minimal-Konfiguration..."
+    # Fallback: Minimale funktionierende Konfiguration
+    cat > /etc/nginx/sites-available/$PROJECT_NAME << 'MINIMAL_EOF'
+server {
+    listen 80;
+    server_name _;
+    root /opt/feuerwehr_dashboard/static;
+    index index.html;
+    
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    location /api/public/ {
+        proxy_pass http://127.0.0.1:5001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+
+server {
+    listen 5000;
+    server_name _;
+    
+    location / {
+        proxy_pass http://127.0.0.1:5001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+MINIMAL_EOF
+    nginx -t
+    if [ $? -ne 0 ]; then
+        echo "❌ Auch Minimal-Konfiguration fehlerhaft - Abbruch!"
+        exit 1
+    fi
+    echo "✅ Minimal-Konfiguration funktioniert"
 fi
 
 echo "🔧 Schritt 6: Berechtigungen sicherstellen..."

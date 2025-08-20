@@ -104,7 +104,7 @@ MAX_LOG_SIZE=10485760
 LOG_BACKUP_COUNT=5
 
 # Security
-CSRF_ENABLED=True
+CSRF_ENABLED=False
 SESSION_TIMEOUT=3600
 
 # Rate Limiting
@@ -117,7 +117,40 @@ fi
 
 # Systemd Service installieren
 echo "⚙️ Systemd Service wird installiert..."
-cp $INSTALL_DIR/feuerwehr-dashboard.service /etc/systemd/system/
+if [ -f "$INSTALL_DIR/config/feuerwehr-dashboard.service" ]; then
+    cp $INSTALL_DIR/config/feuerwehr-dashboard.service /etc/systemd/system/
+else
+    echo "❌ Service-Datei nicht gefunden in $INSTALL_DIR/config/"
+    echo "🔧 Erstelle Service-Datei..."
+    cat > /etc/systemd/system/feuerwehr-dashboard.service << 'SERVICE_EOF'
+[Unit]
+Description=Feuerwehr Dashboard Flask Application
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/feuerwehr_dashboard
+Environment=PATH=/opt/feuerwehr_dashboard/venv/bin
+Environment=FLASK_ENV=production
+EnvironmentFile=/opt/feuerwehr_dashboard/.env.production
+ExecStart=/opt/feuerwehr_dashboard/venv/bin/gunicorn --bind 0.0.0.0:5001 --workers 2 --timeout 120 --access-logfile /var/log/feuerwehr_dashboard/access.log --error-logfile /var/log/feuerwehr_dashboard/error.log wsgi:app
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=10
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/feuerwehr_dashboard /var/log/feuerwehr_dashboard
+
+[Install]
+WantedBy=multi-user.target
+SERVICE_EOF
+fi
 systemctl daemon-reload
 systemctl enable $SERVICE_NAME
 

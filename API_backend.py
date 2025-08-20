@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from logging.handlers import RotatingFileHandler
 from werkzeug.utils import secure_filename
 from wetterdaten import main
-from flask_wtf.csrf import CSRFProtect
+# from flask_wtf.csrf import CSRFProtect  # Nicht verwendet
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf import FlaskForm
@@ -69,31 +69,7 @@ csrf = None
 def inject_csrf_token():
     return dict(csrf_token=lambda: None)  # Immer None für Kompatibilität
 
-if csrf_enabled:
-    try:
-        csrf = CSRFProtect(app)
-        app.logger.info("CSRF Protection aktiviert")
-        
-        # CSRF-Token für Templates verfügbar machen
-        @app.context_processor
-        def inject_csrf_token():
-            from flask_wtf.csrf import generate_csrf
-            return dict(csrf_token=lambda: generate_csrf())
-            
-        # CSRF Error Handler
-        @app.errorhandler(400)
-        def csrf_error(reason):
-            app.logger.warning(f"CSRF Fehler: {reason}")
-            # Fallback zu einfachem Login
-            return redirect(url_for('simple_login'))
-            
-    except Exception as e:
-        app.logger.warning(f"CSRF Setup fehlgeschlagen: {e}")
-        csrf = None
-        csrf_enabled = False
-else:
-    csrf = None
-    app.logger.info("CSRF Protection deaktiviert (Bessere Kompatibilität)")
+app.logger.info("CSRF Protection deaktiviert (Bessere Kompatibilität)")
 
 # Rate Limiting
 rate_limit_enabled = os.getenv('RATE_LIMIT_ENABLED', 'True').lower() == 'true'
