@@ -59,23 +59,30 @@ Feuerwehr_Dashboard/
    cd Feuerwehr_Dashboard
    ```
 
-2. **Virtuelle Umgebung erstellen**
+2. **Umgebungsvariablen konfigurieren**
+   ```bash
+   # Windows
+   copy .env.example .env
+   
+   # Linux/Mac
+   cp .env.example .env
+   ```
+   
+   **Dann `.env` bearbeiten und ausfüllen:**
+   - `OPENWEATHER_API_KEY` - Ihr API-Schlüssel von OpenWeatherMap
+   - `PASSWORD` - Ihr Admin-Passwort
+
+3. **Virtuelle Umgebung erstellen**
+3. **Virtuelle Umgebung erstellen**
    ```bash
    python -m venv .venv
    .venv\Scripts\activate  # Windows
    source .venv/bin/activate  # Linux/Mac
    ```
 
-3. **Dependencies installieren**
+4. **Dependencies installieren**
    ```bash
    pip install -r requirements.txt
-   ```
-
-4. **Umgebungsvariablen konfigurieren**
-   ```bash
-   # Erstelle .env Datei mit:
-   OPENWEATHER_API_KEY=your_api_key_here
-   PASSWORD=your_admin_password
    ```
 
 5. **Anwendung starten**
@@ -85,22 +92,48 @@ Feuerwehr_Dashboard/
 
    Dashboard öffnen: `http://localhost:5000`
 
+### 🆘 Setup-Probleme beheben
+
+**Problem: "No module named 'flask'"**
+```bash
+# Virtuelle Umgebung aktiviert?
+.venv\Scripts\activate  # Windows
+pip install -r requirements.txt
+```
+
+**Problem: "OpenWeather API key required"**
+```bash
+# .env Datei erstellt und API-Key eingetragen?
+copy .env.example .env  # Windows
+# Dann .env bearbeiten
+```
+
+**Problem: "Permission denied"**
+```bash
+# Python Berechtigung? Anderer Port probieren:
+python API_backend.py --port 8000
+```
+
 ## ⚙️ Konfiguration
 
 ### Umgebungsvariablen (.env)
 
+**Erstelle `.env` aus der Vorlage:**
 ```bash
-# OpenWeather API (erforderlich)
+copy .env.example .env  # Windows
+cp .env.example .env    # Linux/Mac
+```
+
+**Minimale Konfiguration:**
+```bash
+# OpenWeather API (ERFORDERLICH)
 OPENWEATHER_API_KEY=your_api_key_here
 
-# Admin-Passwort
+# Admin-Passwort (ERFORDERLICH)
 PASSWORD=your_admin_password
-
-# Optional: Flask Konfiguration
-FLASK_SECRET_KEY=auto_generated_if_not_set
-FLASK_ENV=production
-FLASK_DEBUG=False
 ```
+
+**Vollständige Optionen:** Siehe `.env.example` für alle verfügbaren Einstellungen.
 
 ### OpenWeather API Key
 
