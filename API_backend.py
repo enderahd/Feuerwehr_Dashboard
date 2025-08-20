@@ -50,24 +50,32 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 if flask_env == 'production':
     app.config['DEBUG'] = False
     app.config['TESTING'] = False
-    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS required for production
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['PERMANENT_SESSION_LIFETIME'] = int(os.getenv('SESSION_TIMEOUT', 3600))
 else:
     app.config['DEBUG'] = True
+    app.config['SESSION_COOKIE_SECURE'] = False  # HTTP für Development
 
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key_for_development_only')
 TARGET_DIR = os.getenv('zielverzeichnis', '/opt/feuerwehr_dashboard')
 
-# CSRF Schutz - DEAKTIVIERT für bessere Kompatibilität
-csrf_enabled = False  # Temporär deaktiviert
-csrf = None
+# CSRF Schutz - PRODUKTIONSUMGEBUNG
+csrf_enabled = os.getenv('CSRF_ENABLED', 'True').lower() == 'true'
+if csrf_enabled and flask_env == 'production':
+    from flask_wtf.csrf import CSRFProtect
+    csrf = CSRFProtect(app)
+    app.config['WTF_CSRF_TIME_LIMIT'] = 3600
+    app.logger.info("CSRF Protection aktiviert (Produktionsumgebung)")
+else:
+    csrf = None
+    app.logger.info("CSRF Protection deaktiviert (Development/Kompatibilität)")
 
 # CSRF-Token für Templates verfügbar machen (immer)
 @app.context_processor
 def inject_csrf_token():
-    return dict(csrf_token=lambda: None)  # Immer None für Kompatibilität
+    return dict(csrf_token="")  # Leerer String für Kompatibilität
 
 app.logger.info("CSRF Protection deaktiviert (Bessere Kompatibilität)")
 
