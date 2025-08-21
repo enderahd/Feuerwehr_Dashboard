@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() if csrf_token else '' }}">
-    <title>Backend</title>
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>🚒 Feuerwehr Dashboard - Glienicke/Nordbahn</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -134,8 +134,21 @@
     </style>
 </head>
 <body>
-    <h1>Backend</h1>
-    <div class="grid"></div>
+    <!-- Sicherheits-Badge und Logout -->
+    <div style="position: fixed; top: 10px; right: 10px; background: #28a745; color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; z-index: 1000;">
+        🛡️ Vollständig Gesichert
+    </div>
+    
+    <form method="POST" action="/logout" style="position: fixed; top: 10px; left: 10px; display: inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" style="background: #dc3545; color: white; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold;">
+            🚪 Sicher Abmelden
+        </button>
+    </form>
+    
+    <div style="margin-top: 60px;">
+        <h1>🚒 Feuerwehr Dashboard - Backend</h1>
+    <div class="grid">
         <div class="grid-item" data-number="1">Ziel 1</div>
         <div class="grid-item" data-number="2">Ziel 2</div>
         <div class="grid-item" data-number="3">Ziel 3</div>
@@ -143,8 +156,8 @@
         <div class="grid-item" data-number="5">Ziel 5</div>
         <div class="grid-item" data-number="6">Ziel 6</div>
     </div>
-        <button id="delete-button" disabled>Löschen</button>
-        <div id="deleteResult" class="result"></div>
+    <button id="delete-button" disabled>Löschen</button>
+    <div id="deleteResult" class="result"></div>
     <script>
         // Enable/disable delete button based on selection and occupation
         document.querySelectorAll('.grid-item').forEach(item => {
@@ -186,9 +199,7 @@
     </script>
     <div class="upload-section">
         <form id="uploadForm" method="POST" action="/upload" enctype="multipart/form-data" onsubmit="return false;">
-            {{ form.hidden_tag() }}
-            {{ form.file() }}
-            <!-- Die Nummer wird automatisch gesetzt, kein Eingabefeld mehr -->
+            <input type="file" id="file" name="file" accept="application/pdf" required />
             <button type="button" id="uploadButton" disabled>Hochladen</button>
         </form>
         <div id="uploadResult" class="result"></div>
@@ -223,16 +234,11 @@
 
         document.getElementById('uploadButton').addEventListener('click', function() {
             if (!selectedNumber) return;
-
             const fileInput = document.getElementById('file');
             if (fileInput.files.length === 0) return;
-
-            const csrfToken = document.querySelector('input[name="csrf_token"]').value;
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
             formData.append('number', selectedNumber);
-            formData.append('csrf_token', csrfToken);
-
             fetch('/upload', {
                 method: 'POST',
                 body: formData
@@ -252,13 +258,12 @@
         });
 
         document.getElementById('delete-button').addEventListener('click', function() {
-
+            if (!selectedNumber) return;
+            const formData = new FormData();
+            formData.append('number', selectedNumber);
             fetch('/delete', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ number: selectedNumber })
+                body: formData
             })
             .then(response => response.json())
             .then(data => {
@@ -326,7 +331,7 @@
 
         document.getElementById('manualUpdateButton').addEventListener('click', updateGridStatus);
         function updateGridStatus() {
-            fetch('/wetter_update', {
+            fetch('/api/public/pdf_status', {
                 method: 'GET'
             })
             .then(response => response.json())
@@ -334,7 +339,7 @@
                 document.querySelectorAll('.grid-item').forEach(item => {
                     const number = item.getAttribute('data-number');
                     item.classList.remove('occupied', 'free');
-                    if (data.occupied.includes(number)) {
+                    if (data.occupied && data.occupied.includes(Number(number))) {
                         item.classList.add('occupied');
                     } else {
                         item.classList.add('free');
@@ -361,6 +366,22 @@
 
             updateGridStatus();
         });
+        
+        // CSRF Token für AJAX verfügbar machen
+        window.csrfToken = '{{ csrf_token }}';
+        
+        // Globale AJAX-Konfiguration für CSRF
+        if (window.fetch) {
+            const originalFetch = window.fetch;
+            window.fetch = function(url, options = {}) {
+                options.headers = options.headers || {};
+                if (window.csrfToken) {
+                    options.headers['X-CSRFToken'] = window.csrfToken;
+                }
+                return originalFetch(url, options);
+            };
+        }
     </script>
+    </div> <!-- Schließender div für margin-top Container -->
 </body>
 </html>

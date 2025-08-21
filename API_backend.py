@@ -12,13 +12,9 @@ from dotenv import load_dotenv
 from logging.handlers import RotatingFileHandler
 from werkzeug.utils import secure_filename
 from wetterdaten import main
-# from flask_wtf.csrf import CSRFProtect  # Nicht verwendet
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_wtf import FlaskForm
-from flask_wtf.file import FileField, FileAllowed
-from wtforms import PasswordField, SubmitField
-from wtforms.validators import DataRequired
 
 # Umgebung laden (Development hat Vorrang für lokales Testen)
 flask_env = 'development'
@@ -47,49 +43,39 @@ else:
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
 # Konfiguration basierend auf Umgebung
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key_for_development_only')
+app.config['WTF_CSRF_TIME_LIMIT'] = 3600
+app.config['SESSION_COOKIE_SECURE'] = False if flask_env == 'development' else True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = int(os.getenv('SESSION_TIMEOUT', 3600))
+
 if flask_env == 'production':
     app.config['DEBUG'] = False
     app.config['TESTING'] = False
-    app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS required for production
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-    app.config['PERMANENT_SESSION_LIFETIME'] = int(os.getenv('SESSION_TIMEOUT', 3600))
 else:
     app.config['DEBUG'] = True
-    app.config['SESSION_COOKIE_SECURE'] = False  # HTTP für Development
 
-app.secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key_for_development_only')
 TARGET_DIR = os.getenv('zielverzeichnis', '/opt/feuerwehr_dashboard')
 
-# CSRF Schutz - PRODUKTIONSUMGEBUNG
-csrf_enabled = os.getenv('CSRF_ENABLED', 'True').lower() == 'true'
-if csrf_enabled and flask_env == 'production':
-    from flask_wtf.csrf import CSRFProtect
-    csrf = CSRFProtect(app)
-    app.config['WTF_CSRF_TIME_LIMIT'] = 3600
-    app.logger.info("CSRF Protection aktiviert (Produktionsumgebung)")
-else:
-    csrf = None
-    app.logger.info("CSRF Protection deaktiviert (Development/Kompatibilität)")
+# CSRF Schutz - VOLLSTÄNDIG AKTIVIERT für volle Sicherheit
+csrf = CSRFProtect(app)
+app.logger.info("🛡️ CSRF Protection vollständig aktiviert (Volle Sicherheit)")
 
-# CSRF-Token für Templates verfügbar machen (immer)
+# CSRF-Token für Templates verfügbar machen
 @app.context_processor
 def inject_csrf_token():
-    return dict(csrf_token="")  # Leerer String für Kompatibilität
+    return dict(csrf_token=generate_csrf())
 
-app.logger.info("CSRF Protection deaktiviert (Bessere Kompatibilität)")
+# Rate Limiting - VOLLSTÄNDIG AKTIVIERT
+limiter = Limiter(key_func=get_remote_address)
+limiter.init_app(app)
+default_rate_limit = os.getenv('RATE_LIMIT_DEFAULT', '100 per hour')
+login_rate_limit = os.getenv('RATE_LIMIT_LOGIN', '5 per minute')
+app.logger.info("🛡️ Rate Limiting aktiviert")
 
-# Rate Limiting
-rate_limit_enabled = os.getenv('RATE_LIMIT_ENABLED', 'True').lower() == 'true'
-if rate_limit_enabled:
-    limiter = Limiter(key_func=get_remote_address)
-    limiter.init_app(app)
-    default_rate_limit = os.getenv('RATE_LIMIT_DEFAULT', '100 per hour')
-    login_rate_limit = os.getenv('RATE_LIMIT_LOGIN', '5 per minute')
-else:
-    limiter = None
-    default_rate_limit = None
-    login_rate_limit = None
+# Passwort aus Umgebungsvariable
+DASHBOARD_PASSWORD = os.getenv('DASHBOARD_PASSWORD', 'feuerwehr2024!')
 
 # Zielverzeichnisse basierend auf der Nummer
 TARGET_DIRS = {
@@ -104,107 +90,60 @@ TARGET_DIRS = {
 # Sicherstellen, dass das Zielverzeichnis existiert
 os.makedirs(f'{TARGET_DIR}/pdfs', exist_ok=True)
 
-# Passwort für den Zugriff
-PASSWORD = os.getenv('PASSWORD', 'default_password')  # Passwort aus Umgebungsvariablen oder Standardwert
-# Auto-Update-Status aus Umgebungsvariablen laden
+# Zielverzeichnisse basierend auf der Nummer
+TARGET_DIRS = {
+    1: f'{TARGET_DIR}/pdfs',
+    2: f'{TARGET_DIR}/pdfs',
+    3: f'{TARGET_DIR}/pdfs',
+    4: f'{TARGET_DIR}/pdfs',
+    5: f'{TARGET_DIR}/pdfs',
+    6: f'{TARGET_DIR}/pdfs'
+}
 
-class LoginForm(FlaskForm):
-    password = PasswordField('Passwort', validators=[DataRequired()])
-    submit = SubmitField('Login')
+# Authentifizierung prüfen
+def login_required(f):
+    def decorated_function(*args, **kwargs):
+        if not session.get('authenticated'):
+            app.logger.warning(f"Unbefugter Zugriff auf {request.endpoint} von {request.remote_addr}")
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    decorated_function.__name__ = f.__name__
+    return decorated_function
 
-class UploadForm(FlaskForm):
-    file = FileField('PDF auswählen', validators=[FileAllowed(['pdf'], 'Nur PDF erlaubt!')])
-    submit = SubmitField('Hochladen')
-
+# Login Route - SAUBER UND SICHER
 @app.route("/", methods=['GET', 'POST'])
+@limiter.limit(login_rate_limit)
 def login():
-    if limiter and login_rate_limit:
-        @limiter.limit(login_rate_limit)
-        def rate_limited_login():
-            return _login()
-        return rate_limited_login()
-    else:
-        return _login()
-
-def _login():
-    # Versuche zuerst Flask-WTF Form (nur wenn CSRF aktiviert ist)
-    if csrf_enabled:
-        try:
-            form = LoginForm()
-            user_ip = request.remote_addr
-            app.logger.info(f"Login-Versuch von IP-Adresse: {user_ip} (mit CSRF)")
-            
-            if form.validate_on_submit():
-                entered_password = form.password.data
-                if entered_password == PASSWORD:
-                    session['authenticated'] = True
-                    app.logger.info("Erfolgreicher Login mit Flask-WTF.")
-                    return redirect(url_for('dashboard'))
-                else:
-                    app.logger.warning("Fehlgeschlagener Login-Versuch.")
-                    return render_template("login.html", form=form, error="Falsches Passwort!")
-            
-            # Wenn Form nicht validiert hat, prüfe ob CSRF das Problem ist
-            if request.method == 'POST' and form.errors:
-                app.logger.warning(f"Form-Validierung fehlgeschlagen: {form.errors}")
-                # Bei CSRF-Fehlern, leite zu einfachem Login weiter
-                if any('csrf' in str(error).lower() for error in form.errors.values() if error):
-                    app.logger.info("CSRF-Fehler erkannt, weiterleitung zu einfachem Login")
-                    return redirect(url_for('simple_login'))
-            
-            return render_template("login.html", form=form)
-        
-        except Exception as e:
-            app.logger.warning(f"Flask-WTF Fehler: {e}, verwende einfaches Login")
-            # Fallback: Einfaches Login ohne WTF
-            return redirect(url_for('simple_login'))
-    else:
-        # Kein CSRF aktiviert, nutze einfaches Login
-        return _simple_login()
-
-@app.route("/simple_login", methods=['GET', 'POST'])
-def simple_login():
-    """Einfaches Login ohne Flask-WTF für CSRF-Probleme"""
-    return _simple_login()
-
-def _simple_login():
-    """Einfache Login-Logik ohne CSRF"""
     user_ip = request.remote_addr
-    app.logger.info(f"Einfacher Login-Versuch von IP-Adresse: {user_ip}")
     
     if request.method == 'POST':
         entered_password = request.form.get('password', '')
-        expected_password = PASSWORD
+        app.logger.info(f"🔐 Login-Versuch von IP: {user_ip}")
         
-        # Debug-Informationen (nur in Development) - ohne Passwort-Details
-        if flask_env == 'development':
-            app.logger.info(f"Passwort-Vergleich: {entered_password == expected_password}")
-        
-        if entered_password == expected_password:
+        if entered_password == DASHBOARD_PASSWORD:
             session['authenticated'] = True
             session.permanent = True
-            app.logger.info("Erfolgreicher Login (einfach).")
+            app.logger.info(f"✅ Erfolgreicher Login von IP: {user_ip}")
             return redirect(url_for('dashboard'))
         else:
-            app.logger.warning(f"Fehlgeschlagener Login-Versuch (einfach). IP: {user_ip}")
-            if flask_env == 'development':
-                return render_template("login_simple.html", 
-                                     error=f"Falsches Passwort! Erwartet: '{expected_password}', Eingegeben: '{entered_password}'")
-            else:
-                return render_template("login_simple.html", error="Falsches Passwort!")
+            app.logger.warning(f"❌ Fehlgeschlagener Login von IP: {user_ip}")
+            return render_template("login.html", error="Falsches Passwort!")
     
-    return render_template("login_simple.html")
+    # GET - Login-Seite anzeigen
+    return render_template("login.html")
 
+# Dashboard Route - SICHER
 @app.route("/dashboard")
+@login_required
 def dashboard():
-    if not session.get('authenticated'):
-        return redirect(url_for('login'))
-    form = UploadForm()
-    return render_template("index.html", form=form)
+    return render_template("index.html")
 
-@app.route('/logout')
+# Logout Route - SICHER
+@app.route('/logout', methods=['POST'])
+@login_required
 def logout():
     session.pop('authenticated', None)
+    app.logger.info(f"🚪 Benutzer abgemeldet von IP: {request.remote_addr}")
     return redirect(url_for('login'))
 
 @app.route('/upload', methods=['POST', 'GET'])
@@ -287,6 +226,15 @@ def wetter_update():
     return jsonify({'message': 'Wetterdaten wurden aktualisiert'}), 200
 
 # ===== ÖFFENTLICHE API ENDPOINTS FÜR FRONTEND =====
+@app.route('/api/public/pdf_status', methods=['GET'])
+def public_pdf_status():
+    """Liefert belegte PDF-Slots für das Dashboard-Grid"""
+    occupied = []
+    for number, target_dir in TARGET_DIRS.items():
+        file_path = os.path.join(target_dir, f'{number}.pdf')
+        if os.path.exists(file_path):
+            occupied.append(number)
+    return jsonify({'occupied': occupied}), 200
 
 @app.route('/api/public/weather', methods=['GET'])
 def public_weather():
@@ -380,8 +328,8 @@ def debug_info():
     
     info = {
         'flask_env': flask_env,
-        'password_configured': PASSWORD,
-        'csrf_enabled': csrf_enabled,
+        'password_configured': DASHBOARD_PASSWORD,
+        'csrf_enabled': True,
         'target_dir': TARGET_DIR,
         'session_authenticated': session.get('authenticated', False),
         'remote_addr': request.remote_addr
